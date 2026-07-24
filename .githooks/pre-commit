@@ -1,0 +1,21 @@
+#!/bin/sh
+REPO_ROOT=$(git rev-parse --show-toplevel)
+
+uv run sync-notebooks | grep -v "Warning"
+JUPYTEXT_STATUS=$?
+
+if [ $JUPYTEXT_STATUS -ne 0 ]; then
+    echo "Jupytext sync failed! Commit aborted."
+    exit 1
+fi
+
+uv run -m unittest discover
+TEST_STATUS=$?
+
+if [ $TEST_STATUS -ne 0 ]; then
+    echo "Unit tests failed! Commit aborted."
+    exit 1
+fi
+
+echo "Jupytext synced & all tests passed. Proceeding with commit."
+exit 0
