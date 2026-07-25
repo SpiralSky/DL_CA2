@@ -7,7 +7,6 @@ from torch.utils.data import DataLoader
 def get_cifar10(data_path: Path) -> DataLoader:
     """
     Loads and returns the CIFAR10 dataset.
-
     :return: DataLoader of CIFAR10 dataset.
     """
 
