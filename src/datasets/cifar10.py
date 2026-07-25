@@ -1,13 +1,22 @@
+from pathlib import Path
+
 import torchvision
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 
-transform = transforms.Compose([
-    transforms.ToTensor()
-])
+def get_cifar10(data_path: Path) -> DataLoader:
+    """
+    Loads and returns the CIFAR10 dataset.
 
-dataset = torchvision.datasets.CIFAR10(download=True, root='./data', train=True, transform=transform)
-train_loader = DataLoader(dataset, batch_size=64, shuffle=True)
+    :return: DataLoader of CIFAR10 dataset.
+    """
 
-def get_cifar10() -> DataLoader:
+    # test
+    transform = transforms.Compose([
+        transforms.ToTensor()
+    ])
+
+    dataset = torchvision.datasets.CIFAR10(download=True, root=data_path, train=True, transform=transform)
+    train_loader = DataLoader(dataset, batch_size=64, shuffle=True)
+
     return train_loader

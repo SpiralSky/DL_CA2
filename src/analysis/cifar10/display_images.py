@@ -2,6 +2,13 @@ from matplotlib import pyplot as plt
 from torch.utils.data import DataLoader
 
 def display_images(dataloader: DataLoader, dim: tuple[int, int]) -> None:
+    """
+    Displays images in a grid.
+    :param dataloader: Pytorch DataLoader object.
+    :param dim: Dimensions of the grid, in the format: (rows, columns)
+    :return:
+    """
+
     dataiter = iter(dataloader)
     images = []
 
