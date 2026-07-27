@@ -5,7 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="52153388-1f13-42a6-892b-65c95bf84a00" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/dl-ca2.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/dl-ca2.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.githooks/pre-commit" beforeDir="false" afterPath="$PROJECT_DIR$/.githooks/pre-commit" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
