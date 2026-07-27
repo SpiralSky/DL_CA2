@@ -1,4 +1,5 @@
 # %%
+import os
 # %load_ext magics.magics
 
 # %% [markdown]
@@ -398,8 +399,16 @@ _ = run_class_eda(eda_dataloader, cifar_10_dataset.classes)
 
 # %%
 train_data, validation_data = torch.utils.data.random_split(cifar_10_dataset, [0.8, 0.2])
-train_data_loader = DataLoader(train_data, batch_size=32, shuffle=True)
-val_data_loader = DataLoader(validation_data, batch_size=32, shuffle=False)
+num_workers = min(2, os.cpu_count())
+
+train_data_loader = DataLoader(
+    train_data, batch_size=256, shuffle=True,
+    num_workers=num_workers, pin_memory=True, persistent_workers=True,
+)
+val_data_loader = DataLoader(
+    validation_data, batch_size=256, shuffle=False,
+    num_workers=num_workers, pin_memory=True, persistent_workers=True,
+)
 
 # %%
 # %%load_clean
@@ -408,8 +417,11 @@ import models.VAE.decoders.decoder #noqa
 class BasicDecoder(nn.Module):
     """
     Convolutional decoder mirroring ConvEncoder. Maps a latent vector back
-    to a 32x32 RGB image via upsampling transposed convs: 4 -> 8 -> 16 -> 32.
-    Output is passed through sigmoid to match [0, 1]-scaled ToTensor() inputs.
+    to a 32x32 RGB image via upsampling transposed convs: 4 -> 8 -> 16 -> 32,
+    with a stride-1 refinement conv at each resolution (mirroring the
+    encoder) so shape/structure can be reconstructed with more capacity than
+    a single upsampling conv provides. Output is passed through sigmoid to
+    match [0, 1]-scaled ToTensor() inputs.
     """
 
     def __init__(self, out_channels=3, base_channels=32, latent_dim=128):
@@ -418,15 +430,19 @@ class BasicDecoder(nn.Module):
         self.init_spatial = 4
         self.fc = nn.Linear(latent_dim, base_channels * 4 * self.init_spatial * self.init_spatial)
 
+        def up_block(in_ch, out_ch):
+            return nn.Sequential(
+                nn.ConvTranspose2d(in_ch, out_ch, kernel_size=4, stride=2, padding=1),
+                nn.BatchNorm2d(out_ch),
+                nn.LeakyReLU(0.2, inplace=True),
+                nn.Conv2d(out_ch, out_ch, kernel_size=3, stride=1, padding=1),
+                nn.BatchNorm2d(out_ch),
+                nn.LeakyReLU(0.2, inplace=True),
+            )
+
         self.deconv = nn.Sequential(
-            nn.ConvTranspose2d(base_channels * 4, base_channels * 2, kernel_size=4, stride=2, padding=1),
-            nn.BatchNorm2d(base_channels * 2),
-            nn.LeakyReLU(0.2, inplace=True),
-
-            nn.ConvTranspose2d(base_channels * 2, base_channels, kernel_size=4, stride=2, padding=1),
-            nn.BatchNorm2d(base_channels),
-            nn.LeakyReLU(0.2, inplace=True),
-
+            up_block(base_channels * 4, base_channels * 2),
+            up_block(base_channels * 2, base_channels),
             nn.ConvTranspose2d(base_channels, out_channels, kernel_size=4, stride=2, padding=1),
             nn.Sigmoid(),
         )
@@ -446,23 +462,29 @@ class BasicEncoder(nn.Module):
     """
     Convolutional encoder for 32x32 RGB images (e.g. CIFAR-10).
     Maps an image to the parameters (mu, logvar) of a diagonal Gaussian
-    over the latent space. Downsamples 32 -> 16 -> 8 -> 4 via stride-2 convs.
+    over the latent space. Downsamples 32 -> 16 -> 8 -> 4 via stride-2 convs,
+    with a stride-1 refinement conv at each resolution so the network has
+    capacity to learn shape/structure features before compressing further,
+    rather than immediately squeezing spatial detail into the bottleneck.
     """
 
     def __init__(self, in_channels=3, base_channels=32, latent_dim=128):
         super().__init__()
+
+        def down_block(in_ch, out_ch):
+            return nn.Sequential(
+                nn.Conv2d(in_ch, out_ch, kernel_size=4, stride=2, padding=1),
+                nn.BatchNorm2d(out_ch),
+                nn.LeakyReLU(0.2, inplace=True),
+                nn.Conv2d(out_ch, out_ch, kernel_size=3, stride=1, padding=1),
+                nn.BatchNorm2d(out_ch),
+                nn.LeakyReLU(0.2, inplace=True),
+            )
+
         self.features = nn.Sequential(
-            nn.Conv2d(in_channels, base_channels, kernel_size=4, stride=2, padding=1),
-            nn.BatchNorm2d(base_channels),
-            nn.LeakyReLU(0.2, inplace=True),
-
-            nn.Conv2d(base_channels, base_channels * 2, kernel_size=4, stride=2, padding=1),
-            nn.BatchNorm2d(base_channels * 2),
-            nn.LeakyReLU(0.2, inplace=True),
-
-            nn.Conv2d(base_channels * 2, base_channels * 4, kernel_size=4, stride=2, padding=1),
-            nn.BatchNorm2d(base_channels * 4),
-            nn.LeakyReLU(0.2, inplace=True),
+            down_block(in_channels, base_channels),
+            down_block(base_channels, base_channels * 2),
+            down_block(base_channels * 2, base_channels * 4),
         )
         self.flatten_dim = base_channels * 4 * 4 * 4  # channels * H * W at 4x4
         self.fc_mu = nn.Linear(self.flatten_dim, latent_dim)
@@ -509,18 +531,29 @@ def build_model(model_name: str, **kwargs):
 # %%load_clean
 import models.VAE.losses
 
-def vae_loss(recon_x, x, mu, logvar, beta=1.0):
+def vae_loss(recon_x, x, mu, logvar, beta=1.0, recon_loss_type="mse"):
     """
-    Standard VAE loss: reconstruction term (binary cross-entropy, since
-    decoder output is sigmoid-bounded to [0, 1]) plus a beta-weighted KL
-    divergence between the approximate posterior N(mu, sigma^2) and the
-    standard normal prior N(0, I).
+    Standard VAE loss: reconstruction term plus a beta-weighted KL divergence
+    between the approximate posterior N(mu, sigma^2) and the standard normal
+    prior N(0, I).
+
+    recon_loss_type:
+        "mse"  - appropriate for continuous natural-image pixels (default,
+                 recommended for CIFAR-10-like photographic data)
+        "bce"  - appropriate for near-binary pixel data (e.g. MNIST); assumes
+                 decoder output is sigmoid-bounded to [0, 1]
 
     Returns individual terms too, since watching them separately during
     training reveals issues (e.g. posterior collapse) that the summed loss
     alone would hide.
     """
-    recon_loss = F.binary_cross_entropy(recon_x, x, reduction="sum") / x.shape[0]
+    if recon_loss_type == "mse":
+        recon_loss = F.mse_loss(recon_x, x, reduction="sum") / x.shape[0]
+    elif recon_loss_type == "bce":
+        recon_loss = F.binary_cross_entropy(recon_x, x, reduction="sum") / x.shape[0]
+    else:
+        raise ValueError(f"Unknown recon_loss_type '{recon_loss_type}', expected 'mse' or 'bce'")
+
     kl_div = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp()).sum() / x.shape[0]
     total_loss = recon_loss + beta * kl_div
     return {
@@ -573,90 +606,130 @@ class VAE(nn.Module):
 
 
 # %%
+@torch.no_grad()
+def plot_reconstructions(model, data_loader, device=None, num_images=8):
+    """
+    Draws one batch from data_loader, runs it through the model, and plots
+    original vs. reconstructed images side by side (originals on top row,
+    reconstructions on bottom row). This catches issues loss curves alone
+    can hide, e.g. whether the model has collapsed to near-identical blurry
+    outputs regardless of input.
+    """
+    device = device or next(model.parameters()).device
+    model.eval()
+
+    images, _ = next(iter(data_loader))
+    images = images[:num_images].to(device)
+    recon, _, _ = model(images)
+
+    images_np = images.cpu().permute(0, 2, 3, 1).numpy()
+    recon_np = recon.cpu().permute(0, 2, 3, 1).numpy()
+
+    fig, axes = plt.subplots(2, num_images, figsize=(num_images * 1.5, 3.5))
+    for i in range(num_images):
+        axes[0, i].imshow(images_np[i])
+        axes[0, i].axis("off")
+        axes[1, i].imshow(recon_np[i].clip(0, 1))
+        axes[1, i].axis("off")
+
+    fig.text(0.02, 0.75, "original", rotation=90, va="center", fontsize=10)
+    fig.text(0.02, 0.25, "reconstructed", rotation=90, va="center", fontsize=10)
+    fig.tight_layout(rect=[0.04, 0, 1, 1])
+    plt.show()
+
+
+# %%
+import copy
 import time
+import torch
 
-def train_one_epoch(model, optimizer, data_loader, device, beta=1.0):
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print("using device:", device)
+
+# --- tunable knobs for this run ---
+latent_dim = 256
+base_channels = 64
+max_epochs = 300          # upper cap; early stopping will likely end training sooner
+warmup_epochs = 20
+lr = 3e-3                 # raised from 1e-3 -- batch_size=256 supports a higher LR
+recon_loss_type = "mse"
+
+early_stopping_patience = 15     # epochs to wait for improvement before stopping
+early_stopping_min_delta = 0.01  # minimum change in val_loss to count as improvement
+
+model = build_baseline_vae(latent_dim=latent_dim, base_channels=base_channels).to(device)
+optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", patience=5, factor=0.5)
+
+best_val_loss = float("inf")
+best_model_state = None
+epochs_without_improvement = 0
+epoch_times = []
+
+for epoch in range(1, max_epochs + 1):
+    beta = min(1.0, epoch / warmup_epochs) if warmup_epochs > 0 else 1.0
+    start = time.time()
+
     model.train()
-    total_loss, total_recon, total_kl = 0.0, 0.0, 0.0
-    num_batches = 0
-
-    for images, _ in data_loader:
+    total_loss, total_recon, total_kl, num_batches = 0.0, 0.0, 0.0, 0
+    for images, _ in train_data_loader:
         images = images.to(device)
-
         optimizer.zero_grad()
         recon, mu, logvar = model(images)
-        losses = vae_loss(recon, images, mu, logvar, beta=beta)
+        losses = vae_loss(recon, images, mu, logvar, beta=beta, recon_loss_type=recon_loss_type)
         losses["total"].backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
-
         total_loss += losses["total"].item()
         total_recon += losses["reconstruction"].item()
         total_kl += losses["kl_divergence"].item()
         num_batches += 1
 
-    return {
-        "loss": total_loss / num_batches,
-        "reconstruction": total_recon / num_batches,
-        "kl_divergence": total_kl / num_batches,
-    }
+    train_loss = total_loss / num_batches
+    train_recon = total_recon / num_batches
+    train_kl = total_kl / num_batches
+    elapsed = time.time() - start
+    epoch_times.append(elapsed)
 
-
-@torch.no_grad()
-def validate_one_epoch(model, data_loader, device, beta=1.0):
     model.eval()
-    total_loss = 0.0
-    num_batches = 0
+    val_total, val_batches = 0.0, 0
+    with torch.no_grad():
+        for images, _ in val_data_loader:
+            images = images.to(device)
+            recon, mu, logvar = model(images)
+            losses = vae_loss(recon, images, mu, logvar, beta=beta, recon_loss_type=recon_loss_type)
+            val_total += losses["total"].item()
+            val_batches += 1
+    val_loss = val_total / val_batches
+    scheduler.step(val_loss)
 
-    for images, _ in data_loader:
-        images = images.to(device)
-        recon, mu, logvar = model(images)
-        losses = vae_loss(recon, images, mu, logvar, beta=beta)
-        total_loss += losses["total"].item()
-        num_batches += 1
+    current_lr = optimizer.param_groups[0]["lr"]
+    print(f"epoch {epoch}/{max_epochs}  loss={train_loss:.2f}  recon={train_recon:.2f}  "
+          f"kl={train_kl:.2f}  beta={beta:.3f}  lr={current_lr:.2e}  "
+          f"time={elapsed:.1f}s  val_loss={val_loss:.2f}")
 
-    return total_loss / num_batches
+    # Only start counting early-stopping patience once beta has fully warmed up --
+    # val_loss is expected to rise/shift during warmup regardless of model quality,
+    # so comparing against "best" before beta stabilizes would trigger prematurely.
+    if beta >= 1.0:
+        if val_loss < best_val_loss - early_stopping_min_delta:
+            best_val_loss = val_loss
+            best_model_state = copy.deepcopy(model.state_dict())
+            epochs_without_improvement = 0
+        else:
+            epochs_without_improvement += 1
 
+        if epochs_without_improvement >= early_stopping_patience:
+            print(f"\nearly stopping at epoch {epoch} "
+                  f"(no improvement > {early_stopping_min_delta} for {early_stopping_patience} epochs)")
+            break
 
-def time_vae_training(train_data_loader, val_data_loader=None, latent_dim=128,
-                       num_epochs=5, lr=1e-3, beta=1.0):
-    """
-    Trains the baseline VAE for num_epochs and reports timing, so you can
-    extrapolate to a full training run before committing to it.
-    """
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print("using device:", device)
+if best_model_state is not None:
+    model.load_state_dict(best_model_state)
+    print(f"restored best model weights (val_loss={best_val_loss:.2f})")
 
-    model = build_baseline_vae(latent_dim=latent_dim).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+avg_epoch_time = sum(epoch_times) / len(epoch_times)
+print(f"\naverage epoch time: {avg_epoch_time:.1f}s")
+print(f"total epochs run: {len(epoch_times)}")
 
-    epoch_times = []
-
-    for epoch in range(1, num_epochs + 1):
-        start = time.time()
-        train_metrics = train_one_epoch(model, optimizer, train_data_loader, device, beta=beta)
-        elapsed = time.time() - start
-        epoch_times.append(elapsed)
-
-        log_line = (f"epoch {epoch}/{num_epochs}  "
-                    f"loss={train_metrics['loss']:.2f}  "
-                    f"recon={train_metrics['reconstruction']:.2f}  "
-                    f"kl={train_metrics['kl_divergence']:.2f}  "
-                    f"time={elapsed:.1f}s")
-
-        if val_data_loader is not None:
-            val_loss = validate_one_epoch(model, val_data_loader, device, beta=beta)
-            log_line += f"  val_loss={val_loss:.2f}"
-
-        print(log_line)
-
-    avg_epoch_time = sum(epoch_times) / len(epoch_times)
-    print(f"\naverage epoch time: {avg_epoch_time:.1f}s")
-    print(f"estimated time for 100 epochs: {avg_epoch_time * 100 / 60:.1f} min")
-
-    return model, epoch_times
-
-model, epoch_times = time_vae_training(
-    train_data_loader,
-    val_data_loader=val_data_loader,
-    num_epochs=100,
-)
+plot_reconstructions(model, val_data_loader)
