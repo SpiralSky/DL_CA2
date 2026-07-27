@@ -23,20 +23,6 @@ from skimage.filters import laplace
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 
-# %%
-import pickle
-import os
-
-data_dir = '../data/cifar-10-batches-py'  # or wherever you put it
-meta_path = os.path.join(data_dir, 'batches.meta')
-
-if os.path.exists(meta_path):
-    with open(meta_path, 'rb') as f:
-        meta = pickle.load(f, encoding='bytes')
-    print("Classes:", meta[b'label_names'])
-else:
-    print("batches.meta is MISSING")
-
 # %% [markdown]
 # ### Configuration
 # - PROJECT_ROOT: Root of project. Note that the data folder is expected to be `PROJECT_ROOT/data/`
@@ -49,7 +35,7 @@ PROJECT_ROOT = Path.cwd().parent
 
 # %%
 # %%load_clean
-from datasets.cifar10 import get_dataset #noqa
+from src.datasets.cifar10 import get_dataset #noqa
 
 def get_dataset(data_path: Path, train: bool = True, transform=None) -> Dataset:
     """
@@ -84,7 +70,7 @@ eda_dataloader = DataLoader(cifar_10_dataset, batch_size=256, shuffle=False)
 
 # %%
 # %%load_clean
-import analysis.cifar10.display_images #noqa
+import src.analysis.cifar10.display_images #noqa
 
 def display_images(dataloader: DataLoader, dim: tuple[int, int]) -> None:
     """
@@ -122,7 +108,7 @@ display_images(eda_dataloader, (10, 5))
 
 # %%
 # %%load_clean
-import analysis.analyse_images #noqa
+import src.analysis.analyse_images #noqa
 
 """
 Per-class image statistics for datasets served via a PyTorch DataLoader.
@@ -426,7 +412,7 @@ val_data_loader = DataLoader(
 
 # %%
 # %%load_clean
-import models.VAE.decoders.decoder #noqa
+import src.models.VAE.decoders.decoder #noqa
 
 class BasicDecoder(nn.Module):
     """
@@ -470,7 +456,7 @@ class BasicDecoder(nn.Module):
 
 # %%
 # %%load_clean
-import models.VAE.encoders.encoder #noqa
+import src.models.VAE.encoders.encoder #noqa
 
 class BasicEncoder(nn.Module):
     """
@@ -515,7 +501,7 @@ class BasicEncoder(nn.Module):
 
 # %%
 # %%load_clean
-import models.VAE.factory #noqa
+import src.models.VAE.factory #noqa
 
 def build_baseline_vae(in_channels=3, base_channels=32, latent_dim=128):
     """
@@ -543,7 +529,7 @@ def build_model(model_name: str, **kwargs):
 
 # %%
 # %%load_clean
-import models.VAE.losses
+import src.models.VAE.losses
 
 def vae_loss(recon_x, x, mu, logvar, beta=1.0, recon_loss_type="mse"):
     """
@@ -580,7 +566,7 @@ def vae_loss(recon_x, x, mu, logvar, beta=1.0, recon_loss_type="mse"):
 
 # %%
 # %%load_clean
-import models.VAE.model
+import src.models.VAE.model
 
 class VAE(nn.Module):
     """
