@@ -1,5 +1,5 @@
-from .encoder import ConvEncoder
-from .decoder import ConvDecoder
+from models.VAE.encoders.encoder import BasicEncoder
+from models.VAE.decoders.decoder import BasicDecoder
 from .model import VAE
 
 
@@ -10,8 +10,8 @@ def build_baseline_vae(in_channels=3, base_channels=32, latent_dim=128):
     gets constructed here (or adding an entry to MODEL_REGISTRY below) --
     everything downstream (training loop, loss function) is unaffected.
     """
-    encoder = ConvEncoder(in_channels=in_channels, base_channels=base_channels, latent_dim=latent_dim)
-    decoder = ConvDecoder(out_channels=in_channels, base_channels=base_channels, latent_dim=latent_dim)
+    encoder = BasicEncoder(in_channels=in_channels, base_channels=base_channels, latent_dim=latent_dim)
+    decoder = BasicDecoder(out_channels=in_channels, base_channels=base_channels, latent_dim=latent_dim)
     return VAE(encoder=encoder, decoder=decoder, latent_dim=latent_dim)
 
 

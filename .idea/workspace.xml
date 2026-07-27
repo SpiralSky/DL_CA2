@@ -6,7 +6,18 @@
   <component name="ChangeListManager">
     <list default="true" id="52153388-1f13-42a6-892b-65c95bf84a00" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/magics/magics.py" beforeDir="false" afterPath="$PROJECT_DIR$/magics/magics.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/notebooks/dev_PartA.py" beforeDir="false" afterPath="$PROJECT_DIR$/notebooks/dev_PartA.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pyproject.toml" beforeDir="false" afterPath="$PROJECT_DIR$/pyproject.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/build.py" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/build.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/analysis/analyse_images.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/analysis/analyse_images.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/datasets/cifar10.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/datasets/cifar10.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/models/VAE/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/models/VAE/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/models/VAE/decoders/decoder.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/models/VAE/decoders/decoder.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/models/VAE/encoders/encoder.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/models/VAE/encoders/encoder.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/models/VAE/factory.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/models/VAE/factory.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/models/VAE/losses.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/models/VAE/losses.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/uv.lock" beforeDir="false" afterPath="$PROJECT_DIR$/uv.lock" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -42,24 +53,24 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ASKED_MARK_IGNORED_FILES_AS_EXCLUDED": "true",
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
-    "SHELLCHECK.PATH": "/home/spiralsky/.local/share/JetBrains/PyCharm2026.2/Shell Script/shellcheck",
-    "codeWithMe.voiceChat.enabledByDefault": "false",
-    "git-widget-placeholder": "main",
-    "last_opened_file_path": "/home/spiralsky/SP/DL_CA2/notebooks",
-    "node.js.detected.package.jshint": "true",
-    "node.js.selected.package.jshint": "",
-    "nodejs_package_manager_path": "npm",
-    "settings.editor.selected.configurable": "preferences.pluginManager"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ASKED_MARK_IGNORED_FILES_AS_EXCLUDED&quot;: &quot;true&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
+    &quot;SHELLCHECK.PATH&quot;: &quot;/home/spiralsky/.local/share/JetBrains/PyCharm2026.2/Shell Script/shellcheck&quot;,
+    &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/home/spiralsky/SP/DL_CA2/notebooks&quot;,
+    &quot;node.js.detected.package.jshint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.jshint&quot;: &quot;&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/notebooks" />
@@ -68,11 +79,11 @@
       <recent name="$PROJECT_DIR$/data" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/src/models/VAE/encoders" />
+      <recent name="$PROJECT_DIR$/src/models/VAE/decoders" />
+      <recent name="$PROJECT_DIR$/src/models/VAE" />
+      <recent name="$PROJECT_DIR$/src/models" />
       <recent name="$PROJECT_DIR$" />
-      <recent name="$PROJECT_DIR$/notebooks" />
-      <recent name="$PROJECT_DIR$/data" />
-      <recent name="$PROJECT_DIR$/workspace" />
-      <recent name="$PROJECT_DIR$/workspace/VAE" />
     </key>
   </component>
   <component name="SharedIndexes">
@@ -94,5 +105,16 @@
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
   </component>
 </project>

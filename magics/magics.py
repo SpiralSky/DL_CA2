@@ -1,6 +1,6 @@
-import os
-import sys
 import importlib.util
+import os
+
 import ast_comments as ast_c
 from IPython import get_ipython
 from IPython.core.magic import Magics, magics_class, cell_magic

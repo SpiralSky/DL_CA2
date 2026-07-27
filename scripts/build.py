@@ -6,10 +6,11 @@ Usage: build("notebooks/dev_CA1.py") -> build/dev_CA1.ipynb
 """
 import re
 from pathlib import Path
-from scripts.sync import sync
 
 import jupytext
 import nbformat
+
+from scripts.sync import sync
 
 LOAD_CLEAN_RE = re.compile(r"^\s*#?\s*%%load_clean\b")
 LOAD_EXT_RE = re.compile(r"^\s*#?\s*%load_ext\b")
