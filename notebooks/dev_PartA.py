@@ -23,6 +23,20 @@ from skimage.filters import laplace
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 
+# %%
+import pickle
+import os
+
+data_dir = '../data/cifar-10-batches-py'  # or wherever you put it
+meta_path = os.path.join(data_dir, 'batches.meta')
+
+if os.path.exists(meta_path):
+    with open(meta_path, 'rb') as f:
+        meta = pickle.load(f, encoding='bytes')
+    print("Classes:", meta[b'label_names'])
+else:
+    print("batches.meta is MISSING")
+
 # %% [markdown]
 # ### Configuration
 # - PROJECT_ROOT: Root of project. Note that the data folder is expected to be `PROJECT_ROOT/data/`
