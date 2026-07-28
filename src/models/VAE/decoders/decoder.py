@@ -21,7 +21,8 @@ class BasicDecoder(nn.Module):
 
         def up_block(in_ch, out_ch):
             return nn.Sequential(
-                nn.ConvTranspose2d(in_ch, out_ch, kernel_size=4, stride=2, padding=1),
+                nn.Upsample(scale_factor=2, mode="nearest"),
+                nn.Conv2d(in_ch, out_ch, kernel_size=3, stride=1, padding=1),
                 nn.BatchNorm2d(out_ch),
                 nn.LeakyReLU(0.2, inplace=True),
                 nn.Conv2d(out_ch, out_ch, kernel_size=3, stride=1, padding=1),
@@ -32,7 +33,8 @@ class BasicDecoder(nn.Module):
         self.deconv = nn.Sequential(
             up_block(base_channels * 4, base_channels * 2),
             up_block(base_channels * 2, base_channels),
-            nn.ConvTranspose2d(base_channels, out_channels, kernel_size=4, stride=2, padding=1),
+            nn.Upsample(scale_factor=2, mode="nearest"),
+            nn.Conv2d(base_channels, out_channels, kernel_size=3, stride=1, padding=1),
             nn.Sigmoid(),
         )
 
