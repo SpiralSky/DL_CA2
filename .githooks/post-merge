@@ -1,0 +1,13 @@
+#!/bin/sh
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+
+uv run sync-notebooks | grep -v "Warning"
+SYNC_STATUS=$?
+
+if [ $SYNC_STATUS -ne 0 ]; then
+    echo "Sync failed!"
+    exit 1
+fi
+
+exit 0
