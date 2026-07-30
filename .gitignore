@@ -2,4 +2,5 @@
 .venv
 /build/
 data/
+.idea
 __pycache__
