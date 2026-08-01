@@ -1,5 +1,8 @@
 # %%
+import copy
 import os
+import time
+from typing import TypedDict
 # %load_ext magics.magics
 
 # %% [markdown]
@@ -426,31 +429,23 @@ class BasicDecoder(nn.Module):
 
     def __init__(self, out_channels=3, base_channels=32, latent_dim=128):
         super().__init__()
-        self.base_channels = base_channels
         self.init_spatial = 4
-        self.fc = nn.Linear(latent_dim, base_channels * 4 * self.init_spatial * self.init_spatial)
 
-        def up_block(in_ch, out_ch):
-            return nn.Sequential(
-                nn.ConvTranspose2d(in_ch, out_ch, kernel_size=4, stride=2, padding=1),
-                nn.BatchNorm2d(out_ch),
-                nn.LeakyReLU(0.2, inplace=True),
-                nn.Conv2d(out_ch, out_ch, kernel_size=3, stride=1, padding=1),
-                nn.BatchNorm2d(out_ch),
-                nn.LeakyReLU(0.2, inplace=True),
-            )
-
-        self.deconv = nn.Sequential(
-            up_block(base_channels * 4, base_channels * 2),
-            up_block(base_channels * 2, base_channels),
-            nn.ConvTranspose2d(base_channels, out_channels, kernel_size=4, stride=2, padding=1),
+        self.decoder = nn.Sequential(
+            nn.Linear(latent_dim, base_channels * 4 * self.init_spatial * self.init_spatial),
+            nn.Unflatten(dim=1, unflattened_size=(base_channels * 4, self.init_spatial, self.init_spatial)),
+            nn.Conv2d(base_channels * 4, base_channels * 4, kernel_size=3, stride=1, padding=1),
+            nn.Upsample(scale_factor=2, mode="nearest"),
+            nn.Conv2d(base_channels * 4, base_channels * 2, kernel_size=3, stride=1, padding=1),
+            nn.Upsample(scale_factor=2, mode="nearest"),
+            nn.Conv2d(base_channels * 2, base_channels, kernel_size=3, stride=1, padding=1),
+            nn.Upsample(scale_factor=2, mode="nearest"),
+            nn.Conv2d(base_channels, out_channels, kernel_size=3, stride=1, padding=1),
             nn.Sigmoid(),
         )
 
-    def forward(self, z):
-        h = self.fc(z)
-        h = h.view(-1, self.base_channels * 4, self.init_spatial, self.init_spatial)
-        return self.deconv(h)
+    def forward(self, input_features):
+        return self.decoder(input_features)
 
 
 
@@ -467,35 +462,27 @@ class BasicEncoder(nn.Module):
     capacity to learn shape/structure features before compressing further,
     rather than immediately squeezing spatial detail into the bottleneck.
     """
-
-    def __init__(self, in_channels=3, base_channels=32, latent_dim=128):
+    def __init__(self, input_channels=3, output_channels=32, latent_dim=128):
         super().__init__()
 
-        def down_block(in_ch, out_ch):
-            return nn.Sequential(
-                nn.Conv2d(in_ch, out_ch, kernel_size=4, stride=2, padding=1),
-                nn.BatchNorm2d(out_ch),
-                nn.LeakyReLU(0.2, inplace=True),
-                nn.Conv2d(out_ch, out_ch, kernel_size=3, stride=1, padding=1),
-                nn.BatchNorm2d(out_ch),
-                nn.LeakyReLU(0.2, inplace=True),
-            )
-
         self.features = nn.Sequential(
-            down_block(in_channels, base_channels),
-            down_block(base_channels, base_channels * 2),
-            down_block(base_channels * 2, base_channels * 4),
+            nn.Conv2d(input_channels, output_channels, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(output_channels),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(output_channels, output_channels, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(output_channels),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Flatten()
         )
-        self.flatten_dim = base_channels * 4 * 4 * 4  # channels * H * W at 4x4
-        self.fc_mu = nn.Linear(self.flatten_dim, latent_dim)
-        self.fc_logvar = nn.Linear(self.flatten_dim, latent_dim)
 
-    def forward(self, x):
-        h = self.features(x)
-        h = h.flatten(start_dim=1)
-        mu = self.fc_mu(h)
-        logvar = self.fc_logvar(h)
-        return mu, logvar
+        self.mean = nn.Linear(self.flatten_dim, latent_dim)
+        self.log_variance = nn.Linear(self.flatten_dim, latent_dim)
+
+    def forward(self, inputs):
+        feature_maps = self.features(inputs)
+        mean = self.mean(feature_maps)
+        log_variance = self.log_variance(feature_maps)
+        return mean, log_variance
 
 
 
@@ -503,27 +490,16 @@ class BasicEncoder(nn.Module):
 # %%load_clean
 import src.models.autoencoders.factory #noqa
 
-def build_baseline_vae(in_channels=3, base_channels=32, latent_dim=128):
+def newVAE(in_channels=3, base_channels=32, latent_dim=128):
     """
     Assembles the baseline autoencoders from its component modules. Switching to a
     different encoder/decoder implementation later only means changing what
     gets constructed here (or adding an entry to MODEL_REGISTRY below) --
     everything downstream (training loop, loss function) is unaffected.
     """
-    encoder = BasicEncoder(in_channels=in_channels, base_channels=base_channels, latent_dim=latent_dim)
+    encoder = BasicEncoder(input_channels=in_channels, output_channels=base_channels, latent_dim=latent_dim)
     decoder = BasicDecoder(out_channels=in_channels, base_channels=base_channels, latent_dim=latent_dim)
     return VAE(encoder=encoder, decoder=decoder, latent_dim=latent_dim)
-
-
-MODEL_REGISTRY = {
-    "baseline_vae": build_baseline_vae,
-}
-
-
-def build_model(model_name: str, **kwargs):
-    if model_name not in MODEL_REGISTRY:
-        raise ValueError(f"Unknown model '{model_name}'. Available: {list(MODEL_REGISTRY.keys())}")
-    return MODEL_REGISTRY[model_name](**kwargs)
 
 
 
@@ -531,7 +507,7 @@ def build_model(model_name: str, **kwargs):
 # %%load_clean
 import src.models.autoencoders.losses
 
-def vae_loss(recon_x, x, mu, logvar, beta=1.0, recon_loss_type="mse"):
+def vae_loss(recon_x, x, mu, logvar, beta=1.0, recon_loss_type="mse", free_bits=0.0):
     """
     Standard autoencoders loss: reconstruction term plus a beta-weighted KL divergence
     between the approximate posterior N(mu, sigma^2) and the standard normal
@@ -542,6 +518,12 @@ def vae_loss(recon_x, x, mu, logvar, beta=1.0, recon_loss_type="mse"):
                  recommended for CIFAR-10-like photographic data)
         "bce"  - appropriate for near-binary pixel data (e.g. MNIST); assumes
                  decoder output is sigmoid-bounded to [0, 1]
+
+    free_bits:
+        Minimum nats each latent dimension is allowed before its KL term is
+        penalized (per-dimension clamp, applied before summing). 0 disables
+        this (original behavior). Use e.g. 0.5 to counter posterior collapse,
+        where many dimensions drive KL to ~0 and stop encoding information.
 
     Returns individual terms too, since watching them separately during
     training reveals issues (e.g. posterior collapse) that the summed loss
@@ -554,7 +536,11 @@ def vae_loss(recon_x, x, mu, logvar, beta=1.0, recon_loss_type="mse"):
     else:
         raise ValueError(f"Unknown recon_loss_type '{recon_loss_type}', expected 'mse' or 'bce'")
 
-    kl_div = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp()).sum() / x.shape[0]
+    kl_per_dim = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp())
+    if free_bits > 0:
+        kl_per_dim = torch.clamp(kl_per_dim, min=free_bits)
+    kl_div = kl_per_dim.sum() / x.shape[0]
+
     total_loss = recon_loss + beta * kl_div
     return {
         "total": total_loss,
@@ -582,13 +568,14 @@ class VAE(nn.Module):
         self.decoder = decoder
         self.latent_dim = latent_dim
 
-    def reparameterize(self, mu, logvar):
+    @staticmethod
+    def reparameterize(mu, logvar):
         std = torch.exp(0.5 * logvar)
         eps = torch.randn_like(std)
         return mu + eps * std
 
-    def forward(self, x):
-        mu, logvar = self.encoder(x)
+    def forward(self, input_features):
+        mu, logvar = self.encoder(input_features)
         z = self.reparameterize(mu, logvar)
         recon = self.decoder(z)
         return recon, mu, logvar
@@ -606,6 +593,9 @@ class VAE(nn.Module):
 
 
 # %%
+# %%load_clean
+from src.models.autoencoders.inspection.reconstructions import plot_reconstructions
+
 @torch.no_grad()
 def plot_reconstructions(model, data_loader, device=None, num_images=8):
     """
@@ -638,98 +628,209 @@ def plot_reconstructions(model, data_loader, device=None, num_images=8):
     plt.show()
 
 
+
 # %%
-import copy
-import time
-import torch
+# %%load_clean
+import src.models.autoencoders.training.callbacks
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print("using device:", device)
+class Callback:
+    """Base class -- override the hook you need. Mirrors keras.callbacks.Callback's shape."""
 
-# --- tunable knobs for this run ---
-latent_dim = 256
-base_channels = 64
-max_epochs = 300          # upper cap; early stopping will likely end training sooner
-warmup_epochs = 20
-lr = 3e-3                 # raised from 1e-3 -- batch_size=256 supports a higher LR
-recon_loss_type = "mse"
+    def on_epoch_end(self, epoch, logs, model):
+        """Return True to request that training stop."""
+        return False
 
-early_stopping_patience = 15     # epochs to wait for improvement before stopping
-early_stopping_min_delta = 0.01  # minimum change in val_loss to count as improvement
 
-model = build_baseline_vae(latent_dim=latent_dim, base_channels=base_channels).to(device)
-optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", patience=5, factor=0.5)
+class EarlyStopping(Callback):
+    """
+    PyTorch has no built-in equivalent of keras.callbacks.EarlyStopping, so this
+    reimplements it: stop once `monitor` hasn't improved by at least `min_delta`
+    for `patience` consecutive epochs, and (optionally) restore the best weights
+    seen once training ends.
+    """
 
-best_val_loss = float("inf")
-best_model_state = None
-epochs_without_improvement = 0
-epoch_times = []
+    def __init__(self, monitor="val_loss", patience=15, min_delta=0.01, restore_best_weights=True):
+        self.monitor = monitor
+        self.patience = patience
+        self.min_delta = min_delta
+        self.restore_best_weights = restore_best_weights
 
-for epoch in range(1, max_epochs + 1):
-    beta = min(1.0, epoch / warmup_epochs) if warmup_epochs > 0 else 1.0
-    start = time.time()
+        self.best = float("inf")
+        self.best_epoch = None
+        self.best_state = None
+        self.wait = 0
 
-    model.train()
-    total_loss, total_recon, total_kl, num_batches = 0.0, 0.0, 0.0, 0
-    for images, _ in train_data_loader:
-        images = images.to(device)
-        optimizer.zero_grad()
-        recon, mu, logvar = model(images)
-        losses = vae_loss(recon, images, mu, logvar, beta=beta, recon_loss_type=recon_loss_type)
-        losses["total"].backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-        optimizer.step()
-        total_loss += losses["total"].item()
-        total_recon += losses["reconstruction"].item()
-        total_kl += losses["kl_divergence"].item()
-        num_batches += 1
-
-    train_loss = total_loss / num_batches
-    train_recon = total_recon / num_batches
-    train_kl = total_kl / num_batches
-    elapsed = time.time() - start
-    epoch_times.append(elapsed)
-
-    model.eval()
-    val_total, val_batches = 0.0, 0
-    with torch.no_grad():
-        for images, _ in val_data_loader:
-            images = images.to(device)
-            recon, mu, logvar = model(images)
-            losses = vae_loss(recon, images, mu, logvar, beta=beta, recon_loss_type=recon_loss_type)
-            val_total += losses["total"].item()
-            val_batches += 1
-    val_loss = val_total / val_batches
-    scheduler.step(val_loss)
-
-    current_lr = optimizer.param_groups[0]["lr"]
-    print(f"epoch {epoch}/{max_epochs}  loss={train_loss:.2f}  recon={train_recon:.2f}  "
-          f"kl={train_kl:.2f}  beta={beta:.3f}  lr={current_lr:.2e}  "
-          f"time={elapsed:.1f}s  val_loss={val_loss:.2f}")
-
-    # Only start counting early-stopping patience once beta has fully warmed up --
-    # val_loss is expected to rise/shift during warmup regardless of model quality,
-    # so comparing against "best" before beta stabilizes would trigger prematurely.
-    if beta >= 1.0:
-        if val_loss < best_val_loss - early_stopping_min_delta:
-            best_val_loss = val_loss
-            best_model_state = copy.deepcopy(model.state_dict())
-            epochs_without_improvement = 0
+    def on_epoch_end(self, epoch, logs, model):
+        current = logs[self.monitor]
+        if current < self.best - self.min_delta:
+            self.best = current
+            self.best_epoch = epoch
+            self.wait = 0
+            if self.restore_best_weights:
+                self.best_state = copy.deepcopy(model.state_dict())
         else:
-            epochs_without_improvement += 1
+            self.wait += 1
+        return self.wait >= self.patience
 
-        if epochs_without_improvement >= early_stopping_patience:
-            print(f"\nearly stopping at epoch {epoch} "
-                  f"(no improvement > {early_stopping_min_delta} for {early_stopping_patience} epochs)")
-            break
+    def restore(self, model):
+        if self.best_state is not None:
+            model.load_state_dict(self.best_state)
 
-if best_model_state is not None:
-    model.load_state_dict(best_model_state)
-    print(f"restored best model weights (val_loss={best_val_loss:.2f})")
 
-avg_epoch_time = sum(epoch_times) / len(epoch_times)
-print(f"\naverage epoch time: {avg_epoch_time:.1f}s")
-print(f"total epochs run: {len(epoch_times)}")
 
-plot_reconstructions(model, val_data_loader)
+# %%
+# %%load_clean
+import src.models.autoencoders.training.trainer
+
+class TrainConfig(TypedDict):
+    lr: float
+    max_epochs: int
+    warmup_epochs: int
+    beta_target: float
+    recon_loss_type: str
+    free_bits: float
+    grad_clip_norm: float
+    scheduler_patience: int
+    scheduler_factor: float
+    early_stopping_patience: int
+    early_stopping_min_delta: float
+
+
+def beta_schedule(epoch: int, warmup_epochs: int, beta_target: float) -> float:
+    if warmup_epochs <= 0:
+        return beta_target
+    return min(beta_target, beta_target * epoch / warmup_epochs)
+
+
+def run_epoch(
+    model: torch.nn.Module,
+    loader: DataLoader,
+    device: torch.device,
+    optimizer: torch.optim.Optimizer,
+    config: TrainConfig,
+    beta: float,
+    train: bool,
+) -> dict[str, float]:
+    model.train() if train else model.eval()
+    totals = {"total": 0.0, "reconstruction": 0.0, "kl_divergence": 0.0}
+    num_batches = 0
+
+    with torch.enable_grad() if train else torch.no_grad():
+        for images, _ in loader:
+            images = images.to(device)
+            if train:
+                optimizer.zero_grad()
+
+            recon, mu, logvar = model(images)
+            losses = vae_loss(
+                recon,
+                images,
+                mu,
+                logvar,
+                beta=beta,
+                recon_loss_type=config["recon_loss_type"],
+                free_bits=config["free_bits"],
+            )
+
+            if train:
+                losses["total"].backward()
+                torch.nn.utils.clip_grad_norm_(
+                    model.parameters(), max_norm=config["grad_clip_norm"]
+                )
+                optimizer.step()
+
+            for k in totals:
+                totals[k] += losses[k].item()
+            num_batches += 1
+
+    return {k: v / num_batches for k, v in totals.items()}
+
+
+def _format_logs(logs: dict) -> str:
+    return (
+        f"epoch {logs['epoch']}/{logs['max_epochs']}  "
+        f"loss={logs['loss']:.2f}  "
+        f"recon={logs['recon']:.2f}  "
+        f"kl={logs['kl']:.2f}  "
+        f"beta={logs['beta']:.3f}  "
+        f"lr={logs['lr']:.2e}  "
+        f"time={logs['time']:.1f}s  "
+        f"val_loss={logs['val_loss']:.2f}"
+    )
+
+
+def fit(
+    model: torch.nn.Module,
+    train_loader: DataLoader,
+    val_loader: DataLoader,
+    config: TrainConfig,
+    device: torch.device,
+    *,
+    optimizer: torch.optim.Optimizer | None = None,
+    scheduler: torch.optim.lr_scheduler._LRScheduler | None = None,
+    early_stopping: EarlyStopping | None = None,
+    run_epoch_fn = run_epoch,
+    beta_schedule_fn = beta_schedule,
+) -> list[dict]:
+    if optimizer is None:
+        optimizer = torch.optim.Adam(model.parameters(), lr=config["lr"])
+
+    if scheduler is None:
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            mode="min",
+            patience=config["scheduler_patience"],
+            factor=config["scheduler_factor"],
+        )
+
+    if early_stopping is None:
+        early_stopping = EarlyStopping(
+            monitor="val_loss",
+            patience=config["early_stopping_patience"],
+            min_delta=config["early_stopping_min_delta"],
+        )
+
+    history = []
+    for epoch in range(1, config["max_epochs"] + 1):
+        beta = beta_schedule_fn(epoch, config["warmup_epochs"], config["beta_target"])
+        start = time.time()
+
+        train_metrics = run_epoch_fn(
+            model, train_loader, device, optimizer, config, beta, train=True
+        )
+        val_metrics = run_epoch_fn(
+            model, val_loader, device, optimizer, config, beta, train=False
+        )
+        scheduler.step(val_metrics["total"])
+        elapsed = time.time() - start
+
+        logs = {
+            "epoch": epoch,
+            "max_epochs": config["max_epochs"],
+            "beta": beta,
+            "lr": optimizer.param_groups[0]["lr"],
+            "time": elapsed,
+            "loss": train_metrics["total"],
+            "recon": train_metrics["reconstruction"],
+            "kl": train_metrics["kl_divergence"],
+            "val_loss": val_metrics["total"],
+        }
+        history.append(logs)
+        print(_format_logs(logs))
+
+        if beta >= config["beta_target"]:
+            if early_stopping.on_epoch_end(epoch, logs, model):
+                print(
+                    f"\nearly stopping at epoch {epoch} "
+                    f"(no improvement > {config['early_stopping_min_delta']} "
+                    f"for {config['early_stopping_patience']} epochs)"
+                )
+                break
+
+    early_stopping.restore(model)
+    if early_stopping.best_state is not None:
+        print(f"restored best model weights (val_loss={early_stopping.best:.2f})")
+
+    return history
+
+# %%
