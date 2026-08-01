@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 def vae_loss(recon_x, x, mu, logvar, beta=1.0, recon_loss_type="mse", free_bits=0.0):
     """
-    Standard VAE loss: reconstruction term plus a beta-weighted KL divergence
+    Standard autoencoders loss: reconstruction term plus a beta-weighted KL divergence
     between the approximate posterior N(mu, sigma^2) and the standard normal
     prior N(0, I).
 

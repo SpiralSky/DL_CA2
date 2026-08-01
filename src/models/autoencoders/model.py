@@ -4,7 +4,7 @@ import torch.nn as nn
 
 class VAE(nn.Module):
     """
-    Generic VAE shell: takes an encoder and decoder as injected nn.Module
+    Generic autoencoders shell: takes an encoder and decoder as injected nn.Module
     instances rather than hardcoding architecture. Swapping in a different
     encoder/decoder (deeper convs, ResNet blocks, conditional variants that
     also accept a label) requires no changes here.
@@ -16,13 +16,14 @@ class VAE(nn.Module):
         self.decoder = decoder
         self.latent_dim = latent_dim
 
-    def reparameterize(self, mu, logvar):
+    @staticmethod
+    def reparameterize(mu, logvar):
         std = torch.exp(0.5 * logvar)
         eps = torch.randn_like(std)
         return mu + eps * std
 
-    def forward(self, x):
-        mu, logvar = self.encoder(x)
+    def forward(self, input_features):
+        mu, logvar = self.encoder(input_features)
         z = self.reparameterize(mu, logvar)
         recon = self.decoder(z)
         return recon, mu, logvar

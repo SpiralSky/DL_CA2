@@ -412,7 +412,7 @@ val_data_loader = DataLoader(
 
 # %%
 # %%load_clean
-import src.models.VAE.decoders.decoder #noqa
+import src.models.autoencoders.decoders.decoder #noqa
 
 class BasicDecoder(nn.Module):
     """
@@ -456,7 +456,7 @@ class BasicDecoder(nn.Module):
 
 # %%
 # %%load_clean
-import src.models.VAE.encoders.encoder #noqa
+import src.models.autoencoders.encoders.encoder #noqa
 
 class BasicEncoder(nn.Module):
     """
@@ -501,11 +501,11 @@ class BasicEncoder(nn.Module):
 
 # %%
 # %%load_clean
-import src.models.VAE.factory #noqa
+import src.models.autoencoders.factory #noqa
 
 def build_baseline_vae(in_channels=3, base_channels=32, latent_dim=128):
     """
-    Assembles the baseline VAE from its component modules. Switching to a
+    Assembles the baseline autoencoders from its component modules. Switching to a
     different encoder/decoder implementation later only means changing what
     gets constructed here (or adding an entry to MODEL_REGISTRY below) --
     everything downstream (training loop, loss function) is unaffected.
@@ -529,11 +529,11 @@ def build_model(model_name: str, **kwargs):
 
 # %%
 # %%load_clean
-import src.models.VAE.losses
+import src.models.autoencoders.losses
 
 def vae_loss(recon_x, x, mu, logvar, beta=1.0, recon_loss_type="mse"):
     """
-    Standard VAE loss: reconstruction term plus a beta-weighted KL divergence
+    Standard autoencoders loss: reconstruction term plus a beta-weighted KL divergence
     between the approximate posterior N(mu, sigma^2) and the standard normal
     prior N(0, I).
 
@@ -566,11 +566,11 @@ def vae_loss(recon_x, x, mu, logvar, beta=1.0, recon_loss_type="mse"):
 
 # %%
 # %%load_clean
-import src.models.VAE.model
+import src.models.autoencoders.model
 
 class VAE(nn.Module):
     """
-    Generic VAE shell: takes an encoder and decoder as injected nn.Module
+    Generic autoencoders shell: takes an encoder and decoder as injected nn.Module
     instances rather than hardcoding architecture. Swapping in a different
     encoder/decoder (deeper convs, ResNet blocks, conditional variants that
     also accept a label) requires no changes here.
