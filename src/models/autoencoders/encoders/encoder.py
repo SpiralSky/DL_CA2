@@ -23,8 +23,8 @@ class BasicEncoder(nn.Module):
             nn.Flatten()
         )
 
-        self.mean = nn.Linear(self.flatten_dim, latent_dim)
-        self.log_variance = nn.Linear(self.flatten_dim, latent_dim)
+        self.mean = nn.Linear(8192, latent_dim)
+        self.log_variance = nn.Linear(8192, latent_dim)
 
     def forward(self, inputs):
         feature_maps = self.features(inputs)

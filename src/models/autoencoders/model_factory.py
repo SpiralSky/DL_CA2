@@ -1,6 +1,6 @@
 from models.autoencoders.encoders.encoder import BasicEncoder
 from models.autoencoders.decoders.decoder import BasicDecoder
-from .model import VAE
+from models.autoencoders.models.VAE import VAE
 
 
 def basic_autoencoder(in_channels=3, base_channels=32, latent_dim=128):

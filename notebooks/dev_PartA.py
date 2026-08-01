@@ -38,7 +38,6 @@ PROJECT_ROOT = Path.cwd().parent
 
 # %%
 # %%load_clean
-from src.datasets.cifar10 import get_dataset #noqa
 
 def get_dataset(data_path: Path, train: bool = True, transform=None) -> Dataset:
     """
@@ -73,7 +72,6 @@ eda_dataloader = DataLoader(cifar_10_dataset, batch_size=256, shuffle=False)
 
 # %%
 # %%load_clean
-import src.analysis.cifar10.display_images #noqa
 
 def display_images(dataloader: DataLoader, dim: tuple[int, int]) -> None:
     """
@@ -111,7 +109,6 @@ display_images(eda_dataloader, (10, 5))
 
 # %%
 # %%load_clean
-import src.analysis.analyse_images #noqa
 
 """
 Per-class image statistics for datasets served via a PyTorch DataLoader.
@@ -415,7 +412,6 @@ val_data_loader = DataLoader(
 
 # %%
 # %%load_clean
-import src.models.autoencoders.decoders.decoder #noqa
 
 class BasicDecoder(nn.Module):
     """
@@ -451,7 +447,6 @@ class BasicDecoder(nn.Module):
 
 # %%
 # %%load_clean
-import src.models.autoencoders.encoders.encoder #noqa
 
 class BasicEncoder(nn.Module):
     """
@@ -488,7 +483,6 @@ class BasicEncoder(nn.Module):
 
 # %%
 # %%load_clean
-import src.models.autoencoders.factory #noqa
 
 def newVAE(in_channels=3, base_channels=32, latent_dim=128):
     """
@@ -505,7 +499,6 @@ def newVAE(in_channels=3, base_channels=32, latent_dim=128):
 
 # %%
 # %%load_clean
-import src.models.autoencoders.losses
 
 def vae_loss(recon_x, x, mu, logvar, beta=1.0, recon_loss_type="mse", free_bits=0.0):
     """
@@ -552,7 +545,6 @@ def vae_loss(recon_x, x, mu, logvar, beta=1.0, recon_loss_type="mse", free_bits=
 
 # %%
 # %%load_clean
-import src.models.autoencoders.model
 
 class VAE(nn.Module):
     """
@@ -594,7 +586,6 @@ class VAE(nn.Module):
 
 # %%
 # %%load_clean
-from src.models.autoencoders.inspection.reconstructions import plot_reconstructions
 
 @torch.no_grad()
 def plot_reconstructions(model, data_loader, device=None, num_images=8):
@@ -631,7 +622,6 @@ def plot_reconstructions(model, data_loader, device=None, num_images=8):
 
 # %%
 # %%load_clean
-import src.models.autoencoders.training.callbacks
 
 class Callback:
     """Base class -- override the hook you need. Mirrors keras.callbacks.Callback's shape."""
@@ -680,7 +670,6 @@ class EarlyStopping(Callback):
 
 # %%
 # %%load_clean
-import src.models.autoencoders.training.trainer
 
 class TrainConfig(TypedDict):
     lr: float

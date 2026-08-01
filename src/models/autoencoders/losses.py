@@ -1,44 +1,53 @@
+from typing import Literal, TypedDict
 import torch
 import torch.nn.functional as F
 
 
-def vae_loss(recon_x, x, mu, logvar, beta=1.0, recon_loss_type="mse", free_bits=0.0):
-    """
-    Standard autoencoders loss: reconstruction term plus a beta-weighted KL divergence
-    between the approximate posterior N(mu, sigma^2) and the standard normal
-    prior N(0, I).
+class VAELossOutput(TypedDict):
+    total: torch.Tensor
+    reconstruction: torch.Tensor
+    kl_divergence: torch.Tensor
 
-    recon_loss_type:
-        "mse"  - appropriate for continuous natural-image pixels (default,
-                 recommended for CIFAR-10-like photographic data)
-        "bce"  - appropriate for near-binary pixel data (e.g. MNIST); assumes
-                 decoder output is sigmoid-bounded to [0, 1]
 
-    free_bits:
-        Minimum nats each latent dimension is allowed before its KL term is
-        penalized (per-dimension clamp, applied before summing). 0 disables
-        this (original behavior). Use e.g. 0.5 to counter posterior collapse,
-        where many dimensions drive KL to ~0 and stop encoding information.
+def _reconstruction_loss(
+    recon_x: torch.Tensor,
+    x: torch.Tensor,
+    loss_type: Literal["mse", "bce"],
+) -> torch.Tensor:
+    if loss_type == "mse":
+        return F.mse_loss(recon_x, x, reduction="sum") / x.size(0)
+    if loss_type == "bce":
+        return F.binary_cross_entropy(recon_x, x, reduction="sum") / x.size(0)
+    raise ValueError(
+        f"Unknown recon_loss_type '{loss_type}', expected 'mse' or 'bce'"
+    )
 
-    Returns individual terms too, since watching them separately during
-    training reveals issues (e.g. posterior collapse) that the summed loss
-    alone would hide.
-    """
-    if recon_loss_type == "mse":
-        recon_loss = F.mse_loss(recon_x, x, reduction="sum") / x.shape[0]
-    elif recon_loss_type == "bce":
-        recon_loss = F.binary_cross_entropy(recon_x, x, reduction="sum") / x.shape[0]
-    else:
-        raise ValueError(f"Unknown recon_loss_type '{recon_loss_type}', expected 'mse' or 'bce'")
 
+def _kl_divergence(
+    mu: torch.Tensor,
+    logvar: torch.Tensor,
+    free_bits: float,
+) -> torch.Tensor:
     kl_per_dim = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp())
     if free_bits > 0:
         kl_per_dim = torch.clamp(kl_per_dim, min=free_bits)
-    kl_div = kl_per_dim.sum() / x.shape[0]
+    return kl_per_dim.sum() / mu.size(0)
 
-    total_loss = recon_loss + beta * kl_div
+
+def vae_loss(
+    recon_x: torch.Tensor,
+    x: torch.Tensor,
+    mu: torch.Tensor,
+    logvar: torch.Tensor,
+    *,
+    beta: float = 1.0,
+    recon_loss_type: Literal["mse", "bce"] = "mse",
+    free_bits: float = 0.0,
+) -> VAELossOutput:
+    recon = _reconstruction_loss(recon_x, x, recon_loss_type)
+    kl = _kl_divergence(mu, logvar, free_bits)
     return {
-        "total": total_loss,
-        "reconstruction": recon_loss,
-        "kl_divergence": kl_div,
+        "total": recon + beta * kl,
+        "reconstruction": recon,
+        "kl_divergence": kl,
     }

@@ -12,20 +12,6 @@
 # | 3 | Anti-gravity | `-10.0` |
 # | 4 | Supergravity | `15.0` |
 #
-# **Roadmap of this notebook**
-# 1. Environment setup & exploration
-# 2. Action discretisation
-# 3. Gravity configurations — a physics-first preliminary investigation
-# 4. DQN architecture (Q-network, target network, replay buffer)
-# 5. Training loop & experimental design (why multiple seeds, episode budget)
-# 6. Results — learning curves across all 4 settings
-# 7. Systematic evaluation — defining "best" quantitatively
-# 8. Model improvement — an ablation study proving the target network / replay buffer matter
-# 9. Saving the best model
-# 10. Visualising the trained agent — an embedded video, with a mid-episode disturbance test
-# 11. Summary & conclusions
-#
-# > **Compute constraint.** All training below runs on a single CPU core, no GPU — episode counts are calibrated to finish in a few minutes while still showing genuine learning. Section 5 explains the exact numbers and measured training time. For a longer run (more seeds, more episodes), only the `N_EPISODES` / `N_SEEDS` constants need to change.
 
 # %%
 # gym 0.17.3 is not preinstalled on Colab (which ships gymnasium, or nothing) -- install the
@@ -37,18 +23,17 @@
 #
 # **Problem:**
 #
-# The Pendulum environment is a continuous-control reinforcement learning problem where an agent learns to apply torque to swing the pendulum upright and maintain balance. The objective is to maximise cumulative reward by minimising the pendulum's angle from the upright position, angular velocity, and unnecessary control effort.
+# The Pendulum environment is a continuous-control reinforcement learning problem where an agent learns to apply torque to swing the pendulum upright and maintain balance. The objective is to maximise cumulative reward by minimising the pendulum's angle from upright, angular velocity, and control effort.
 #
-# Deep Q-Network (DQN) is a value-based reinforcement learning algorithm capable of approximating Q-values using a neural network. However, standard DQN only supports discrete action spaces, whereas the Pendulum environment requires continuous torque outputs.
-#
-# Therefore, the first challenge is adapting DQN to solve a continuous-control problem.
+# Standard DQN only supports discrete action spaces, whereas Pendulum requires continuous torque outputs — so the first challenge is adapting DQN to a continuous-control problem.
 #
 # Approaches taken:
 #
-# 1. Action Discretisation
-# 2. Improved DQN Architecture
-# 3. Multiple Gravity Configurations
-# 4. Repeated Experiments
+# 1. Action discretisation
+# 2. Improved DQN architecture (replay buffer + target network)
+# 3. Multiple gravity configurations
+# 4. Repeated experiments (multiple seeds)
+#
 
 # %%
 import random
@@ -106,9 +91,10 @@ env2.close()
 # %% [markdown]
 # ## 2. Action Discretisation
 #
-# DQN outputs one Q-value per *discrete* action, so it cannot directly handle the continuous torque space. As covered in the Topic 6 lecture's discussion of discretising continuous states for Q-tables, there is a direct trade-off: more bins → finer control but a larger output layer and a harder function to learn; fewer bins → coarser control but faster, more stable learning.
+# DQN outputs one Q-value per *discrete* action, so it cannot directly handle the continuous torque space. More bins give finer control but a larger, harder-to-learn output layer; fewer bins give coarser control but faster, more stable learning.
 #
-# We discretise torque into **9 evenly-spaced bins** across `[-2.0, 2.0]` (including 0, so the agent can choose "no torque"). Nine bins is a middle ground that keeps the network small while still giving the agent enough resolution to make smooth, graded corrections rather than only full-strength ±2.0 bang-bang control.
+# We discretise torque into **9 evenly-spaced bins** across `[-2.0, 2.0]` (including 0, so the agent can choose "no torque") — a middle ground that keeps the network small while giving enough resolution for smooth, graded corrections rather than only full-strength ±2.0 bang-bang control.
+#
 
 # %%
 N_BINS = 9
@@ -120,19 +106,20 @@ print("Discrete action set (torque, N\u00b7m):", np.round(ACTION_BINS, 3))
 # %% [markdown]
 # ## 3. Gravity Configurations — A Physics-First Preliminary Investigation
 #
-# Gravity is set via `env.unwrapped.g` immediately after `gym.make(...)` (confirmed to actually change the simulated dynamics, not just a cosmetic flag). Before training anything, it's worth asking: what does each `g` value actually *do* to the physics? Looking at the environment's own update equation,
+# Gravity is set via `env.unwrapped.g` immediately after `gym.make(...)`. Before training, it's worth checking what each `g` value does to the physics. From the environment's update equation,
 #
 # ```
 # new_theta_dot = theta_dot + (3*g / (2*l) * sin(theta) + 3/(m*l^2) * torque) * dt
 # ```
 #
-# the gravity term `3g/(2l)*sin(theta)` acts as a torque that is **zero at theta=0 (upright)** and grows with the tilt angle. Its *sign* determines whether it pushes the pendulum further from upright (destabilising) or back toward upright (self-righting):
+# the gravity term `3g/(2l)*sin(theta)` is zero at `theta=0` (upright) and grows with tilt angle. Its *sign* determines whether it destabilises or self-stabilises the upright position:
 #
-# - `g > 0` → destabilising at upright (the classic "inverted pendulum" problem — gravity actively fights the agent).
-# - `g < 0` → **stabilising** at upright (the sign flip means gravity now pulls *toward* the goal state instead of away from it).
-# - `g = 0` → no gravitational torque at all; only momentum and the agent's own torque matter.
+# - `g > 0` → destabilising at upright (gravity fights the agent).
+# - `g < 0` → **stabilising** at upright (gravity pulls toward the goal state).
+# - `g = 0` → no gravitational torque; only momentum and the agent's own torque matter.
 #
-# We can check this directly with zero torque applied, starting from a small tilt, and watching whether the angle drifts away from upright or back toward it — this gives us a testable hypothesis about difficulty *before* spending any training time.
+# We check this directly with zero torque applied from a small tilt, observing whether the angle drifts away from upright or back toward it — a testable hypothesis about difficulty before spending any training time.
+#
 
 # %%
 def zero_torque_trace(g_val, start_theta=0.2, n_steps=40):
@@ -170,21 +157,23 @@ plt.show()
 
 
 # %% [markdown]
-# **Reading the plot / hypothesis going in:** with zero torque, the default and supergravity settings visibly drift *away* from `theta=0` (destabilising, and faster for `g=15`), free-fall stays essentially flat (neutral), and anti-gravity visibly drifts *back toward* `theta=0` (self-stabilising). Our working hypothesis is therefore an easy→hard ordering of roughly **anti-gravity ≈ free-fall < default < supergravity**. We test this hypothesis against the actual DQN learning curves in Section 6-7 — the training results, not this preliminary check, are what decide the final ranking.
+# **Hypothesis:** with zero torque, default and supergravity drift *away* from `theta=0` (destabilising, faster for `g=15`), free-fall stays flat (neutral), and anti-gravity drifts *back toward* `theta=0` (self-stabilising) — suggesting an easy→hard ordering of roughly **anti-gravity ≈ free-fall < default < supergravity**. This is tested against the actual DQN learning curves in Sections 6-7.
+#
 
 # %% [markdown]
 # ## 4. DQN Architecture
 #
-# Following the two key ingredients highlighted in the Topic 6 lecture for extending Q-learning from discrete Q-tables to continuous state spaces:
+# Two key ingredients extend Q-learning from discrete Q-tables to continuous state spaces:
 #
-# 1. **Experience replay buffer** — recent transitions `(state, action, reward, next_state, done)` are stored in a fixed-size buffer (we use 10,000, matching the lecture's example capacity) and sampled in random mini-batches (32 at a time, also matching the lecture). This breaks the strong correlation between consecutive Pendulum steps, which otherwise destabilises training.
-# 2. **Target network** — a second copy of the Q-network, frozen most of the time, is used to compute the bootstrapped target `r + γ·max_a' Q_target(s', a')`. It is synced to the main network's weights periodically (every 5 episodes here). Without this, the network is chasing a constantly-moving target defined by itself, which is a well-known source of divergence.
+# 1. **Experience replay buffer** — recent transitions `(state, action, reward, next_state, done)` are stored in a fixed-size buffer (10,000) and sampled in random mini-batches (32). This breaks the correlation between consecutive Pendulum steps that would otherwise destabilise training.
+# 2. **Target network** — a second, frozen copy of the Q-network computes the bootstrapped target `r + γ·max_a' Q_target(s', a')`, synced to the main network every 5 episodes. Without this, the network chases a constantly-moving target defined by itself, a known source of divergence.
 #
-# **Q-network:** a simple MLP, `state(3) → Dense(64, relu) → Dense(64, relu) → Dense(9, linear)`, one output per discretised action. Kept deliberately small — Pendulum's state space is low-dimensional, and a small network trains faster per step, which matters a lot on CPU-only compute.
+# **Q-network:** `state(3) → Dense(64, relu) → Dense(64, relu) → Dense(9, linear)`, one output per discretised action. Kept small since Pendulum's state space is low-dimensional and CPU-only compute favours faster per-step training.
 #
-# **Exploration:** epsilon-greedy, starting at `epsilon=1.0` (fully random) and decaying by a factor of 0.97 each episode down to a floor of `0.05`, so the agent explores heavily early on and mostly exploits its learned policy later while still taking occasional random actions.
+# **Exploration:** epsilon-greedy, starting at `epsilon=1.0` and decaying by 0.97 per episode to a floor of `0.05`.
 #
-# **Implementation note on speed:** an early prototype that called Keras `.predict()`/`.fit()` at every single environment step took **~40 seconds per episode** — far too slow to compare 4 settings. Switching to direct `@tf.function`-wrapped model calls for inference and `train_on_batch()` for updates, and training only every 4 steps instead of every step, brought this down to **~0.2-0.24 seconds per episode** (~150-170x faster) with no loss in learning quality. This is the version implemented below.
+# **Speed:** using `@tf.function`-wrapped inference and `train_on_batch()` for updates, and training only every 4 steps, brings training to ~0.2-0.24s/episode (~150-170x faster than naive `.predict()`/`.fit()` calls every step), with no loss in learning quality.
+#
 
 # %%
 class DQNAgent:
@@ -252,16 +241,12 @@ class DQNAgent:
 # %% [markdown]
 # ## 5. Training Loop & Experimental Design
 #
-# **Why multiple seeds?** DQN training is noisy — random network initialisation, random replay sampling, and epsilon-greedy exploration all mean a *single* training run can get lucky or unlucky. One run finishing strong doesn't tell us whether a gravity setting is genuinely easier, or whether we just had a good seed. We therefore train **2 independent seeds per gravity setting** (8 runs total) and report both the mean and the spread across seeds. Two is a compute-budget compromise for this notebook — for the final submission we'd recommend 3-5 seeds per setting on a GPU runtime for tighter confidence.
+# **Why multiple seeds?** DQN training is noisy (random init, replay sampling, epsilon-greedy exploration) — a single run can get lucky or unlucky. We train **2 independent seeds per gravity setting** (8 runs total) and report mean and spread across seeds. For a longer run, 3-5 seeds per setting on a GPU runtime would give tighter confidence.
 #
-# **Episode budget:** `N_EPISODES = 180` per run. This was calibrated empirically on this sandbox's single CPU core: at ~0.2-0.24s/episode, 180 episodes takes well under a minute per run, and an early prototype showed the reward curve clearly bending toward convergence by episode 150, so 180 episodes is enough to show genuine learning without an excessive wait. This constant is the one thing to raise (e.g. to 400-600) when re-running with more compute — the code below records exactly how long training actually took, so that trade-off is measured, not guessed.
+# **Episode budget:** `N_EPISODES = 180` per run, calibrated on this sandbox's single CPU core (~0.2-0.24s/episode, under a minute per run) — enough episodes to show genuine learning without an excessive wait. This is the constant to raise (e.g. to 400-600) with more compute.
 #
-# **On rendering during training vs. after.** The CartPole DQN lab renders periodically *inside* the training loop itself:
-# ```python
-# if not _ % ShowEvery and len(DQN.ReplayMemory) >= DQN.MinReplayMemory:
-#     env.render()
-# ```
-# with `ShowEvery = 10` — a popup every 10th episode, showing the *current, still-learning* policy. `train_dqn` below supports the same pattern via an optional `render_every` argument, for exactly this reason. It's **off by default for the 8-run sweep below** (4 gravity settings × 2 seeds): the lab renders one environment, once; this notebook trains 8 configurations back-to-back specifically to compare them, and periodic popups on all 8 would both be impractical (8x the interruptions) and silently do nothing anyway on Colab/headless (same reason explained in Section 10). Section 10 instead renders **after** training, from the saved best model — a deliberate choice, not an oversight, but the in-loop option is genuinely there in the code below if you want to watch a specific run learn live on a local machine.
+# **Rendering.** `train_dqn` supports an optional `render_every` argument for periodic live rendering during training, matching the CartPole lab's `env.render()` pattern. It is off by default here since this notebook trains 8 configurations back-to-back for comparison; Section 10 instead renders the trained policy after training.
+#
 
 # %%
 N_EPISODES = 180
@@ -368,13 +353,14 @@ plt.show()
 # %% [markdown]
 # ## 7. Systematic Evaluation — Defining "Best" Quantitatively
 #
-# "Best" is ambiguous unless we pin down what we're optimising for, so we score each gravity setting on three separate criteria:
+# We score each gravity setting on three criteria:
 #
-# 1. **Final performance** — mean episode reward over the *last 20 episodes*, averaged across both seeds. Higher (closer to 0) is better. This answers "how good is the converged policy?"
-# 2. **Stability** — standard deviation of that same final-20-episode reward, averaged across seeds. Lower is better. This answers "how consistent/reliable is the agent once trained, episode to episode?"
-# 3. **Learning speed** — the first episode at which the 10-episode moving average reward crosses a fixed threshold (`-400`, a level clearly better than random-policy performance but not requiring full convergence). Lower is better. This answers "how quickly does a usable policy emerge?" Pendulum-v0 has no official "solved" threshold (Section 1), so `-400` is self-set and explicit rather than an unverified borrowed number.
+# 1. **Final performance** — mean episode reward over the last 20 episodes, averaged across seeds. Higher (closer to 0) is better — how good is the converged policy?
+# 2. **Stability** — standard deviation of that same final-20-episode reward, averaged across seeds. Lower is better — how consistent is the agent once trained?
+# 3. **Learning speed** — the first episode at which the 10-episode moving average reward crosses a fixed threshold (`-400`, clearly better than random but short of full convergence). Lower is better — how quickly does a usable policy emerge?
 #
-# No single number captures "best" — a setting could converge fast but to a worse final policy, or converge slowly but very stably. We report all three rather than collapsing to one score.
+# No single number captures "best" — a setting could converge fast but to a worse final policy, or slowly but stably — so all three are reported rather than collapsed into one score.
+#
 
 # %%
 def episodes_to_threshold(hist, threshold=-400, window=10):
@@ -425,31 +411,25 @@ plt.show()
 # %% [markdown]
 # **Interpreting the results.**
 #
-# The three criteria tell a strikingly consistent story that matches the Section 3 hypothesis almost exactly: **free-fall and anti-gravity form a clearly easier cluster than default and supergravity, on every single metric.**
+# The three criteria match the Section 3 hypothesis closely: **free-fall and anti-gravity form a clearly easier cluster than default and supergravity, on every metric.**
 #
-# | Setting | Final performance | Stability (std) | Episodes to threshold |
-# |---|---|---|---|
-# | Free-fall (g=0) | **-45.3** (best) | **36.1** (best) | 23.5 |
-# | Anti-gravity (g=-10) | -56.7 | 47.5 | **16.0** (best) |
-# | Default (g=10) | -283.9 | 262.7 | 99.0 |
-# | Supergravity (g=15) | -321.1 (worst) | 292.9 (worst) | 126.0 (worst) |
+# - Free-fall and anti-gravity finish roughly 5-7x better than default and supergravity, with 6-8x lower variance, and reach a usable policy 4-8x faster. What matters most for difficulty isn't gravity's *magnitude* but whether it actively fights the agent (`g>0`, destabilising) or not (`g≤0`).
+# - Anti-gravity reaches the -400 threshold fastest — its self-righting physics gives even a mediocre early policy some reward for free. Free-fall ultimately edges it out on final performance and stability: with no ambient force at all, once the agent zeroes out its own momentum near upright, nothing disturbs it further.
+# - Supergravity is uniformly worse than default gravity, consistent with the same destabilising direction, just stronger — the fixed torque cap (±2.0 N·m) doesn't scale to compensate, so larger tilt angles likely become genuinely unrecoverable, explaining its highest reward variance.
+# - By final performance → stability → speed, **free-fall (g=0)** is the best setup overall; anti-gravity would be the pick if "fastest to a usable policy" were the priority instead.
 #
-# - **The easy pair vs. the hard pair.** Free-fall and anti-gravity finish roughly 5-7x better than default and supergravity, with 6-8x lower variance, and reach a usable policy 4-8x faster. This confirms that what matters most for how hard this task is for DQN isn't gravity's *magnitude* — it's whether gravity actively fights the agent (`g>0`, destabilising at upright) or not (`g≤0`).
-# - **A nuance within the easy pair.** Anti-gravity reaches the -400 threshold fastest (16 episodes vs. 23.5) — its self-righting physics means even a mediocre early policy tends to drift toward upright "for free," so *some* reward quickly follows. But free-fall ultimately edges it out on final performance and stability. A plausible explanation: anti-gravity's restoring force behaves like a lightly-damped spring around upright — it pulls the pendulum back, but can also make it overshoot and oscillate unless the agent learns fine torque control to actively damp that swing. Free-fall has no such ambient force at all: once the agent learns to zero out its own momentum near upright, nothing is left to disturb it, which allows the tightest and most consistent convergence of the four settings.
-# - **A nuance within the hard pair.** Supergravity is uniformly worse than default gravity on all three criteria, consistent with it being "the same destabilising direction, just stronger." Since the torque cap (±2.0 N·m) doesn't scale up to compensate, larger tilt angles under `g=15` likely become genuinely unrecoverable within the available torque budget — not just harder to learn, but occasionally physically un-counterable — which also explains its much larger reward variance (292.9, the highest of the four).
-# - **So, which is "best"?** By this notebook's definition (final performance, then stability, then speed as tie-breakers), **free-fall (g=0)** is the best setup — it wins 2 of 3 criteria outright and is a close second on the third. If "fastest to a usable policy" were the priority instead, anti-gravity would be the pick. Either answer is defensible; what matters is that the criteria — and the trade-off between them — are stated explicitly rather than picking whichever setting "looks good" after the fact.
-# - **Bigger picture.** This is a useful reminder that RL difficulty doesn't track human intuition about "which gravity setting sounds scariest." An agent doesn't care whether physics is helping it (anti-gravity), staying out of the way (free-fall), or fighting it (default, supergravity) in any qualitative sense — what it actually has to overcome is the *size and directional consistency* of the disturbance forcing it away from the goal, and that is exactly what separates the two clusters above.
 
 # %% [markdown]
 # ## 8. Model Improvement — Does the Target Network / Replay Buffer Actually Help?
 #
-# Section 4 explained *why* the Topic 6 lecture says these two ingredients matter, quoting the lecture directly. But quoting a claim isn't the same as demonstrating it. The brief explicitly asks us to "improve the RL agent's performance systematically" — so rather than just asserting the target network and replay buffer help, we ran a controlled **ablation study**: train the exact same DQN, on the exact same gravity setting (default, g=10), with the exact same hyperparameters, and remove one ingredient at a time.
+# Section 4 explains *why* the target network and replay buffer should matter. To verify this rather than just asserting it, we ran a controlled **ablation study**: the same DQN, same gravity setting (default, g=10), same hyperparameters, with one ingredient removed at a time.
 #
-# - **Full DQN**: target network + 10,000-transition replay buffer (as used throughout this notebook).
-# - **No target network**: bootstraps `max Q(s')` off the *live, currently-training* network instead of a frozen copy — this is exactly the failure mode the lecture warns about (“trying to train a complex neural network and asking it to make predictions usually lead to unstable training... can just diverge”).
-# - **No replay buffer**: trains on only the single most recent transition each step (batch size 1, no random sampling) instead of a shuffled batch from history — directly re-introduces the correlated-consecutive-steps problem replay buffers are meant to fix.
+# - **Full DQN**: target network + 10,000-transition replay buffer.
+# - **No target network**: bootstraps `max Q(s')` off the live, currently-training network instead of a frozen copy.
+# - **No replay buffer**: trains on only the single most recent transition each step (batch size 1), re-introducing the correlated-consecutive-steps problem replay buffers fix.
 #
-# Everything else (network size, learning rate, epsilon schedule, episode budget) is held identical across all three, so any performance difference is attributable to the ingredient removed, not a confound.
+# Network size, learning rate, epsilon schedule, and episode budget are held identical across all three, so any performance difference is attributable to the removed ingredient.
+#
 
 # %%
 def build_network(state_dim, n_actions, lr=1e-3):
@@ -561,17 +541,10 @@ plt.savefig("ablation_bar_summary.png", dpi=110)
 plt.show()
 
 # %% [markdown]
-# **Result: both ingredients matter, a lot — this isn't a marginal effect.**
+# **Result: both ingredients matter, and by a large margin.**
 #
-# | Condition | Mean final reward (last 20 ep) |
-# |---|---|
-# | Full DQN | **-288** |
-# | No target network | -1225 |
-# | No replay buffer | -1485 |
+# Removing either ingredient leaves the agent barely better than its random starting point (~-1350 to -1380 average reward in the first 10 episodes) — both ablated variants essentially fail to learn a useful policy within the same 150-episode budget the full version uses to reach a working policy. No replay buffer is the more damaging removal, consistent with batch-size-1 training on highly correlated consecutive states being a particularly unstable regime.
 #
-# Removing *either* ingredient leaves the agent barely better than its own random starting point (~-1350 to -1380 average reward in the first 10 episodes) — both ablated variants essentially fail to learn a useful policy within the same 150-episode budget the full version uses to reach ~-288. No replay buffer is the more damaging removal here (mean -1485 vs -1225), consistent with batch-size-1 training on highly correlated consecutive pendulum states being a particularly unstable regime — exactly the failure mode the lecture's "uncorrelated datapoints → stable training" claim predicts.
-#
-# This is what "systematically improving the agent" means in practice for us: not just tuning numbers, but empirically verifying which architectural choices are load-bearing before trusting them in the full 4-gravity-setting comparison in Sections 6-7.
 
 # %% [markdown]
 # ## 9. Saving the Best Model
@@ -600,28 +573,45 @@ for label in results:
 # %% [markdown]
 # ## 10. Visualising the Trained Agent
 #
-# Reward numbers and learning curves prove the agent works, but they don't let you *see* it. This renders the trained policy as an actual animation: the pendulum swings up under the agent's control, and — to make the demo more than "it swings up once and sits there" — we apply two hard external shoves mid-episode (steps 90 and 170, bob turns orange) so you can watch the controller actively recover, not just hold a fixed starting position. A curved green arrow around the pivot shows the torque direction and strength at every step — which way, and how hard, the agent is turning it to balance.
+# Renders the trained policy: two external shoves are injected mid-episode (steps 90 and 170) so the controller's recovery is visible, not just its ability to hold a fixed starting position.
 #
-# **Two display modes, tried automatically in order:**
-# 1. **Live popup window** — `env.render(mode="human")`. Only works with a real display attached (a local machine with a screen) — it needs pyglet/OpenGL and a window manager, neither of which exist on Colab or a headless server.
-# 2. **Embedded video (automatic fallback)** — if the popup can't open (caught explicitly below, not a silent failure), the same animation is built in matplotlib instead and embedded as a real HTML5 video. This always works, in any environment, and is what actually renders when this notebook is opened, submitted, or exported to HTML.
+# **Two display modes, tried in order:**
+# 1. **Live popup window (preferred)** — `env.render(mode="human")`, called every step during the actual rollout, the same pattern used in the CartPole lab. Shows gym's own Pendulum-v0 renderer: a rod pivoting at a fixed point, with an arrow whose size and direction track the current torque. Requires a real display (pyglet/OpenGL + window manager); not available on Colab or a headless server.
+# 2. **Embedded video (fallback)** — if the popup can't open, the same rollout is instead rendered with matplotlib and embedded as an HTML5 video, using the same rod + pivot + torque-arrow visual so both modes look consistent.
 #
-# **On speed:** the full 260-step rollout is played at 2x (every 2nd simulation step is shown, at 30fps instead of 20), cutting playback from 13s to about 4s without cutting either disturbance out of the story.
+# The rollout is played at 2x (every 2nd simulation step, 30fps) to cut playback time without cutting either disturbance.
+#
 
 # %%
-import time
 import matplotlib.animation as animation
 import matplotlib.patches as mpatches
+from matplotlib.transforms import Affine2D
 from IPython.display import HTML
 
-def rollout_with_disturbance(model_path, gravity, seed=3, max_steps=260, disturbance_steps=(90, 170)):
+def rollout_with_disturbance(model_path, gravity, seed=3, max_steps=260,
+                              disturbance_steps=(90, 170), render_live=True):
     """Runs the trained agent and injects two manual 'shoves' (perturbing theta_dot directly)
-    so the recovery is visible, not just the initial swing-up."""
+    so the recovery is visible, not just the initial swing-up. If render_live=True (default),
+    renders every step live via gym's own popup window (env.render(mode="human")) -- the same
+    pattern used in the CartPole lab -- which is gym's built-in Pendulum-v0 look: a rod
+    pivoting at a fixed point, with an arrow showing torque direction/strength. Falls back
+    silently (live_popup_ok=False) if no display is attached (e.g. Colab/headless)."""
     model = tf.keras.models.load_model(model_path, compile=False)
     env = gym.make("Pendulum-v0")
     env.seed(seed)
     env.unwrapped.g = gravity
     state = env.reset()
+
+    live_popup_ok = False
+    if render_live:
+        try:
+            env.render(mode="human")
+            live_popup_ok = True
+        except Exception as e:
+            print(f"Live popup unavailable in this environment ({type(e).__name__}) -- "
+                  "rendering the embedded video below instead. Running locally with a "
+                  "display? Re-run this cell to get the popup.")
+
     thetas, rewards, torques, disturbed = [], [], [], []
     rng = np.random.default_rng(seed)
     for step in range(max_steps):
@@ -638,33 +628,21 @@ def rollout_with_disturbance(model_path, gravity, seed=3, max_steps=260, disturb
         torques.append(ACTION_BINS[a_idx])
         state, reward, done, info = env.step(np.array([ACTION_BINS[a_idx]]))
         rewards.append(reward)
+        if live_popup_ok:
+            env.render(mode="human")
+
     env.close()
-    return np.array(thetas), np.array(rewards), np.array(torques), np.array(disturbed)
+    return np.array(thetas), np.array(rewards), np.array(torques), np.array(disturbed), live_popup_ok
 
 
-thetas, rewards, torques, disturbed = rollout_with_disturbance(
+thetas, rewards, torques, disturbed, live_popup_ok = rollout_with_disturbance(
     "best_dqn_pendulum.h5", gravity=10.0, seed=3)
 print(f"Rollout: {len(thetas)} steps, total reward={rewards.sum():.1f}, "
       f"{disturbed.sum()} disturbance steps at {np.where(disturbed)[0].tolist()}")
+print("Rendered live via gym's popup window." if live_popup_ok else
+      "No display available -- see the embedded video below.")
 
-# ---------- Attempt 1: live popup window (gym's own renderer) ----------
-# Only works with a real display attached (a local machine, not Colab / a headless server).
-try:
-    demo_env = gym.make("Pendulum-v0")
-    demo_env.seed(3)
-    demo_env.unwrapped.g = 10.0
-    demo_env.reset()
-    for step in range(len(thetas)):
-        demo_env.unwrapped.state = np.array([thetas[step], 0.0])  # replay the exact trajectory
-        demo_env.render(mode="human")
-    demo_env.close()
-    print("Live popup window rendered successfully (gym's own renderer).")
-except Exception as e:
-    print(f"Live popup unavailable in this environment ({type(e).__name__}).")
-    print("Expected on Colab / headless servers -- falling back to an embedded video below.")
-    print("Running locally with a display? Re-run this cell to get the popup instead.")
-
-# ---------- Attempt 2 (fallback, always shown): faster embedded video with a torque-direction arrow ----------
+# ---------- Embedded video (fallback; matches the popup's look: rod + pivot + torque arrow) ----------
 FRAME_STRIDE = 2  # play every 2nd simulation step -> ~2x faster without cutting the story short
 frame_idx = np.arange(0, len(thetas), FRAME_STRIDE)
 
@@ -672,9 +650,11 @@ fig, (ax_pend, ax_reward) = plt.subplots(1, 2, figsize=(11, 5), gridspec_kw={"wi
 ax_pend.set_xlim(-1.3, 1.3); ax_pend.set_ylim(-1.3, 1.3)
 ax_pend.set_aspect("equal"); ax_pend.axis("off")
 ax_pend.set_title("Trained DQN agent — default gravity (g=10)")
-rod, = ax_pend.plot([], [], lw=4, color="#1E2761", solid_capstyle="round")
-bob = ax_pend.scatter([], [], s=500, color="#3B82C4", zorder=5, edgecolors="#1E2761", linewidths=1.5)
-ax_pend.scatter([0], [0], s=80, color="#1A1A2E", zorder=6)
+
+ROD_LEN, ROD_W = 1.0, 0.14
+rod = mpatches.Rectangle((0, -ROD_W / 2), ROD_LEN, ROD_W, facecolor="#1E2761", edgecolor="none", zorder=4)
+ax_pend.add_patch(rod)
+ax_pend.scatter([0], [0], s=90, color="#1A1A2E", zorder=6)  # fixed pivot point
 ax_pend.plot([0, 0], [0, 1.15], linestyle="--", color="#B3261E", alpha=0.4, lw=1.5)
 step_text = ax_pend.text(-1.25, 1.15, "", fontsize=10)
 kick_text = ax_pend.text(-1.25, -1.2, "", fontsize=12, color="#D97706", weight="bold")
@@ -697,10 +677,12 @@ plt.tight_layout()
 def update(i):
     frame = frame_idx[i]
     theta = thetas[frame]
-    x, y = np.sin(theta), np.cos(theta)
-    rod.set_data([0, x], [0, y])
-    bob.set_offsets([[x, y]])
-    step_text.set_text(f"step {frame+1}/{len(thetas)}  torque={torques[frame]:+.2f} N·m")
+
+    # rod is drawn along +x from the pivot by default; rotate it to point at (sin theta, cos theta)
+    angle_deg = 90 - np.degrees(theta)
+    rod.set_transform(Affine2D().rotate_deg_around(0, 0, angle_deg) + ax_pend.transData)
+
+    step_text.set_text(f"step {frame+1}/{len(thetas)}  torque={torques[frame]:+.2f} N\u00b7m")
 
     # arrow curves clockwise for negative torque, counterclockwise for positive; size = |torque|
     torque_frac = torques[frame] / 2.0
@@ -719,33 +701,33 @@ def update(i):
         torque_arrow.set_alpha(0)
 
     recent = disturbed[max(0, frame - 8):frame + 1].any()
-    kick_text.set_text("← external shove! →" if recent else "")
-    bob.set_color("#D97706" if recent else "#3B82C4")
+    kick_text.set_text("\u2190 external shove! \u2192" if recent else "")
+    rod.set_facecolor("#D97706" if recent else "#1E2761")
     reward_line.set_data(np.arange(frame + 1), rewards[:frame + 1])
     reward_dot.set_offsets([[frame, rewards[frame]]])
-    return rod, bob, reward_line, reward_dot, torque_arrow
+    return rod, reward_line, reward_dot, torque_arrow
 
 ani = animation.FuncAnimation(fig, update, frames=len(frame_idx), blit=False, interval=1000/30)
 HTML(ani.to_html5_video())  # embeds a real playable MP4 inline -- this is the cell's output
 
+
 # %% [markdown]
-# Two things worth pointing out if you're presenting this: the agent was **never trained with disturbances** — it only ever saw the standard reset-and-balance task during training (Sections 5-6) — so recovering from an unexpected shove is a genuine generalisation test, not something it memorised. And the recovery isn't instantaneous: watch the reward trace dip sharply right after each shove (the pendulum swings most of the way back around before catching itself), which is a more honest and more interesting demonstration than a pendulum that simply never gets perturbed in the first place. If you have a local display, re-running the cell above will open the live gym popup instead of relying on the fallback video.
+# The agent was **never trained with disturbances** — it only saw the standard reset-and-balance task during training — so recovering from an unexpected shove is a genuine generalisation test. Recovery isn't instantaneous: the reward trace dips sharply right after each shove, since the pendulum swings most of the way back around before catching itself.
+#
 
 # %% [markdown]
 # ## 11. Summary & Conclusions
 #
-# **What we built.** A DQN agent (64-64 MLP, 9 discretised torque actions, experience replay + target network per the Topic 6 lecture's two key DQN ingredients) that learns to balance `Pendulum-v0`, trained and evaluated across 4 gravity regimes with 2 seeds each (8 runs, 180 episodes/run).
+# **What we built.** A DQN agent (64-64 MLP, 9 discretised torque actions, experience replay + target network) that learns to balance `Pendulum-v0`, trained and evaluated across 4 gravity regimes with 2 seeds each (8 runs, 180 episodes/run).
 #
 # **What we found.**
-# - The agent successfully learns a substantially-better-than-random policy in **all four** gravity settings — even the hardest setting (supergravity) improves from roughly -1500 (early, mostly-random) to roughly -321 (converged) average episode reward.
-# - Gravity's *sign* relative to the upright equilibrium — whether it destabilises or self-stabilises the goal state — is the dominant factor in difficulty, far more than its magnitude. Free-fall and anti-gravity (both non-destabilising at upright) converge to policies 5-7x better, 6-8x more stable, and 4-8x faster than default and supergravity (both destabilising).
-# - By our explicit "final performance, then stability, then speed" criteria, **free-fall (g=0)** is the best of the four setups; anti-gravity is a close runner-up that would win under a "fastest learning" priority instead.
+# - The agent learns a substantially-better-than-random policy in all four gravity settings — even supergravity improves from roughly -1500 (early) to roughly -321 (converged) average episode reward.
+# - Gravity's *sign* relative to upright — whether it destabilises or self-stabilises the goal state — is the dominant factor in difficulty, more than its magnitude. Free-fall and anti-gravity converge to policies 5-7x better, 6-8x more stable, and 4-8x faster than default and supergravity.
+# - By final performance → stability → speed, **free-fall (g=0)** is the best of the four setups; anti-gravity is the pick under a "fastest learning" priority.
 #
-# **Limitations & what we'd extend with more compute.** This notebook was built and fully executed on a single CPU core with no GPU, which shaped several choices documented along the way: a small 64-64 network, 9 action bins rather than more, training every 4 steps rather than every step, 180 episodes, and only 2 seeds per setting. For the final submission, the recommended extensions (all of which just mean raising a constant, not changing the code) are:
-# - **More seeds** (3-5 instead of 2) for tighter confidence intervals on the Section 7 table, especially for the noisier default/supergravity settings.
-# - **More episodes**, particularly for default and supergravity — their learning curves in Section 6 are still trending upward at episode 180, so it's an open question whether they'd eventually close more of the gap to the easy pair given more training time.
-# - **Optional architecture extensions**, only after the DQN baseline above is solid (per the assignment brief) — Double DQN (decoupling action-selection from action-evaluation to reduce Q-value overestimation) would be a natural next step given how noisy the default/supergravity Q-estimates likely are, and ties in well with the Part C literature-review topics if RL is chosen there.
+# **Limitations & extensions with more compute.** Built and executed on a single CPU core, which shaped several choices: a small 64-64 network, 9 action bins, training every 4 steps, 180 episodes, 2 seeds per setting. With more compute: more seeds (3-5) for tighter confidence intervals; more episodes for default/supergravity, whose learning curves are still trending upward at episode 180; and, once the DQN baseline is solid, Double DQN to reduce Q-value overestimation.
 #
-# **Model improvement, concretely (Section 8).** Rather than only citing the Topic 6 lecture's claims about why the target network and replay buffer matter, we ran a controlled ablation: same hyperparameters, same gravity setting, one ingredient removed at a time. Both ablated variants (no target network: -1225 mean reward; no replay buffer: -1485) essentially failed to learn within the same budget the full agent (-288) used to reach a working policy — turning a lecture claim into a verified, quantified finding.
+# **Model improvement (Section 8).** A controlled ablation confirmed the target network and replay buffer are both load-bearing: removing either (no target network: -1225 mean reward; no replay buffer: -1485) left the agent essentially unable to learn within the same budget the full agent (-288) used to reach a working policy.
 #
-# **Deliverables produced:** `best_dqn_pendulum.h5` (best overall config) plus one weights file per gravity setting in `all_gravity_weights/`, saved for reproducibility as required by the assignment brief. Section 10 additionally provides a presentable, embedded video demo of the trained agent recovering from live disturbances, useful for the presentation/demo component of this assignment.
+# **Deliverables:** `best_dqn_pendulum.h5` (best overall config) plus one weights file per gravity setting in `all_gravity_weights/`. Section 10 additionally provides an embedded video of the trained agent recovering from live disturbances.
+#
