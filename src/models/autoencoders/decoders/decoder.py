@@ -1,8 +1,5 @@
 import torch.nn as nn
 
-
-import torch.nn as nn
-
 class BasicDecoder(nn.Module):
     """
     Convolutional decoder mirroring ConvEncoder. Maps a latent vector back

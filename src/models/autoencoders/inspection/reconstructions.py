@@ -1,5 +1,6 @@
-from matplotlib import pyplot as plt
 import torch
+from matplotlib import pyplot as plt
+
 
 @torch.no_grad()
 def plot_reconstructions(model, data_loader, device=None, num_images=8):

@@ -1,9 +1,17 @@
-import importlib.util
-import os
+import hashlib
 
 import ast_comments as ast_c
 from IPython import get_ipython
 from IPython.core.magic import Magics, magics_class, cell_magic
+
+# Import shared resolver
+from dependencies.dependency_resolver import (
+    DependencyResolver,
+    resolve_module_path,
+    parse_import_line,
+    normalize_import_line,
+    check_dependencies,
+)
 
 MAX_BLANK_LINES = 2
 
@@ -11,11 +19,6 @@ MAX_BLANK_LINES = 2
 class _SourceSlicer:
     """Extracts top-level definitions/assignments from source by line
     range instead of rewriting the AST and unparsing it.
-
-    Because the original text is sliced rather than regenerated,
-    original formatting (spacing, method chains, inline comments,
-    docstrings) survives untouched. Docstrings are kept by default;
-    pass keep_docstrings=False to strip them.
     """
 
     def __init__(self, source, target_names, keep_docstrings=True):
@@ -86,7 +89,6 @@ class _SourceSlicer:
 
     @staticmethod
     def _docstring_line_range(node):
-        """Return (start_line, end_line) of a node's docstring, if any."""
         body = getattr(node, "body", None)
         if not body:
             return None
@@ -98,20 +100,15 @@ class _SourceSlicer:
         return None
 
     def _leading_blank_count(self, node):
-        """Count blank lines immediately above the node, capped at MAX_BLANK_LINES."""
         start = self._effective_start_line(node)
         count = 0
-        idx = start - 2  # 0-indexed line just above the node's first line
+        idx = start - 2
         while idx >= 0 and self.lines[idx].strip() == "" and count < MAX_BLANK_LINES:
             count += 1
             idx -= 1
         return count
 
     def _leading_standalone_comment(self, body, node):
-        """If a standalone comment sits directly above the node with no
-        blank line separating them, return its source text so it travels
-        with the node it documents.
-        """
         try:
             pos = body.index(node)
         except ValueError:
@@ -144,27 +141,137 @@ class CustomMagics(Magics):
         %%load_clean
         from path.to.module import func, ClassName
 
-        Re-running the cell re-reads the source file and rewrites the cell
-        body with fresh cleaned code, while keeping this header + import
-        line intact so the cell keeps working next time you run it.
+        Executes the module directly in the current notebook namespace.
 
-        Original formatting, comments, and docstrings are preserved
-        because the target code is sliced directly out of the source
-        file rather than rebuilt from the AST.
+        For wildcard imports ("import x.y.z" or "from x import *"),
+        generates a synthetic list variable containing all imported names
+        for IDE tracking and visibility.
+
+        For explicit imports ("from x import a, b"), no synthetic list
+        is generated since names are already explicit.
+
+        Example wildcard output:
+          %%load_clean
+          from src.models.losses import *  # noqa: F401
+
+          _LOAD_CLEAN_IMPORTS_a7f3 = [
+              mse_loss,
+              bce_loss,
+              perceptual_loss,
+          ]
+
+        Example explicit output:
+          %%load_clean
+          from src.models.training import Trainer, TrainConfig  # noqa: F401
+
+        Dependency checking:
+        - Uses scope-aware static analysis (like pyflakes)
+        - External package refs: warns if missing
+        - Internal module refs: ERROR if missing
         """
         import_line = line.strip()
         if not import_line:
             import_line, _, _ = cell.partition("\n")
             import_line = import_line.strip()
 
-        module_path, target_names = self._parse_import_line(import_line)
+        module_path, target_names = parse_import_line(import_line)
         if module_path is None:
-            print(f"Could not parse import statement: {import_line!r}")
+            print(f"[ERROR] Could not parse import statement: {import_line!r}")
             return
 
-        filepath = self._resolve_filepath(module_path)
+        filepath = resolve_module_path(module_path)
         if not filepath:
-            print(f"Module not found: {module_path}")
+            print(f"[ERROR] Module not found: {module_path}")
+            return
+
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                source = f.read()
+        except OSError as e:
+            print(f"[ERROR] Could not read {filepath}: {e}")
+            return
+
+        # Resolve dependencies
+        resolver = DependencyResolver(source, target_names)
+        result = resolver.resolve()
+
+        # Check dependencies
+        warnings = check_dependencies(
+            result.external_refs,
+            result.internal_refs,
+            get_ipython().user_ns,
+            module_path,
+            result.module_imports,
+        )
+        for w in warnings:
+            print(w)
+
+        # Compile and execute
+        try:
+            code = compile(source, filepath, "exec")
+        except SyntaxError as e:
+            print(f"[ERROR] Syntax error in target file {filepath}: {e}")
+            return
+
+        exec(code, get_ipython().user_ns)
+
+        # Normalize import line (import x.y.z -> from x.y.z import *)
+        normalized = normalize_import_line(import_line)
+        if "noqa" not in normalized:
+            normalized = normalized + "  # noqa: F401"
+
+        # Generate synthetic import list ONLY for wildcard imports
+        # Wildcard = no explicit targets OR explicit "*" target
+        is_wildcard = not target_names or target_names == {"*"}
+
+        synthetic_list = ""
+        if is_wildcard and result.needed:
+            cell_hash = hashlib.sha256(normalized.encode()).hexdigest()[:4]
+            var_name = f"_LOAD_CLEAN_IMPORTS_{cell_hash}"
+
+            lines = [f"{var_name} = ["]
+            for name in sorted(result.needed):
+                lines.append(f"    {name},")
+            lines.append("]")
+            synthetic_list = "\n".join(lines)
+
+        # Build cell output
+        if synthetic_list:
+            output = f"%%load_clean\n{normalized}\n\n{synthetic_list}"
+        else:
+            output = f"%%load_clean\n{normalized}"
+
+        get_ipython().set_next_input(output, replace=True)
+
+    @cell_magic
+    def load_empty(self, line, cell=""):
+        """
+        %%load_empty
+        import path.to.module
+
+        or
+
+        %%load_empty
+        from path.to.module import func, ClassName
+
+        Re-running the cell re-reads the source file and rewrites the cell
+        body with fresh cleaned code (imports stripped, only definitions
+        kept), while keeping this header + import line intact so the cell
+        keeps working next time you run it.
+        """
+        import_line = line.strip()
+        if not import_line:
+            import_line, _, _ = cell.partition("\n")
+            import_line = import_line.strip()
+
+        module_path, target_names = parse_import_line(import_line)
+        if module_path is None:
+            print(f"[ERROR] Could not parse import statement: {import_line!r}")
+            return
+
+        filepath = resolve_module_path(module_path)
+        if not filepath:
+            print(f"[ERROR] Module not found: {module_path}")
             return
 
         try:
@@ -172,45 +279,16 @@ class CustomMagics(Magics):
                 source = f.read()
             clean_code = _SourceSlicer(source, target_names).build()
         except SyntaxError as e:
-            print(f"Syntax error in target file {filepath}: {e}")
+            print(f"[ERROR] Syntax error in target file {filepath}: {e}")
             return
 
-        output = f"%%load_clean\n{import_line}\n\n{clean_code}"
+        if "noqa" not in import_line:
+            import_line = import_line + "  # noqa: F401"
+
+        output = f"%%load_empty\n{import_line}\n\n{clean_code}"
         get_ipython().set_next_input(output, replace=True)
 
         exec(compile(clean_code, filepath, "exec"), get_ipython().user_ns)
-
-    @staticmethod
-    def _parse_import_line(import_line):
-        """Parse a literal `import x.y.z` or `from x.y.z import a, b as c` line."""
-        try:
-            node = ast_c.parse(import_line, mode="exec").body[0]
-        except (SyntaxError, IndexError):
-            return None, set()
-
-        if isinstance(node, ast_c.Import) and node.names:
-            return node.names[0].name, set()
-        if isinstance(node, ast_c.ImportFrom) and node.module:
-            targets = {alias.name for alias in node.names}
-            return node.module, targets
-        return None, set()
-
-    @staticmethod
-    def _resolve_filepath(module_path):
-        filepath = None
-        try:
-            spec = importlib.util.find_spec(module_path)
-            if spec and spec.origin:
-                filepath = spec.origin
-        except (ModuleNotFoundError, ValueError):
-            pass
-        if not filepath:
-            fallback_path = module_path.replace(".", "/") + ".py"
-            if os.path.exists(fallback_path):
-                filepath = fallback_path
-        if filepath and os.path.exists(filepath):
-            return filepath
-        return None
 
 
 def load_ipython_extension(ipython):

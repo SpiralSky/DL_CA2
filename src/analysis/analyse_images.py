@@ -6,13 +6,13 @@ Works for any (image, label) DataLoader where images are equal-sized tensors
 only `num_classes` and `class_names` need to change per dataset.
 """
 
-import torch
-import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
-from skimage.filters import laplace
+import numpy as np
+import pandas as pd
+import torch
 from IPython.display import display
+from skimage.filters import laplace
 
 
 def accumulate_pixel_statistics(dataloader, num_classes):

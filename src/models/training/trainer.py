@@ -1,11 +1,13 @@
-from typing import Protocol, runtime_checkable, Optional
-from dataclasses import dataclass
 import time
+from dataclasses import dataclass
+from typing import Protocol, runtime_checkable
+
 import torch
 from torch.utils.data import DataLoader
 
-from models.autoencoders.losses import vae_loss
-from models.training.callbacks import EarlyStopping
+from src.models.autoencoders.losses import vae_loss
+from src.models.training.callbacks import EarlyStopping
+
 
 @dataclass(frozen=True, slots=True)
 class TrainConfig:

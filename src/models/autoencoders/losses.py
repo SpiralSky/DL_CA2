@@ -1,4 +1,5 @@
 from typing import Literal, TypedDict
+
 import torch
 import torch.nn.functional as F
 
@@ -9,7 +10,7 @@ class VAELossOutput(TypedDict):
     kl_divergence: torch.Tensor
 
 
-def _reconstruction_loss(
+def reconstruction_loss(
     recon_x: torch.Tensor,
     x: torch.Tensor,
     loss_type: Literal["mse", "bce"],
@@ -23,7 +24,7 @@ def _reconstruction_loss(
     )
 
 
-def _kl_divergence(
+def kl_divergence(
     mu: torch.Tensor,
     logvar: torch.Tensor,
     free_bits: float,
@@ -44,8 +45,8 @@ def vae_loss(
     recon_loss_type: Literal["mse", "bce"] = "mse",
     free_bits: float = 0.0,
 ) -> VAELossOutput:
-    recon = _reconstruction_loss(recon_x, x, recon_loss_type)
-    kl = _kl_divergence(mu, logvar, free_bits)
+    recon = reconstruction_loss(recon_x, x, recon_loss_type)
+    kl = kl_divergence(mu, logvar, free_bits)
     return {
         "total": recon + beta * kl,
         "reconstruction": recon,

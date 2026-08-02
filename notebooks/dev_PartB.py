@@ -40,13 +40,13 @@ import random
 import time
 from collections import deque
 
+import gym
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 import tensorflow as tf
 from tensorflow.keras import layers
 
-import gym
 print("gym version:", gym.__version__, " (pinned to 0.17.3 per assignment brief, matching the CartPole lab)")
 print("TensorFlow version:", tf.__version__)
 

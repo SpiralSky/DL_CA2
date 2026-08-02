@@ -1,5 +1,5 @@
-from models.autoencoders.encoders.encoder import BasicEncoder
 from models.autoencoders.decoders.decoder import BasicDecoder
+from models.autoencoders.encoders.encoder import BasicEncoder
 from models.autoencoders.models.VAE import VAE
 
 

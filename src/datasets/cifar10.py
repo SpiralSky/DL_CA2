@@ -2,7 +2,8 @@ from pathlib import Path
 
 import torchvision
 import torchvision.transforms as transforms
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import Dataset
+
 
 def get_dataset(data_path: Path, train: bool = True, transform=None) -> Dataset:
     """

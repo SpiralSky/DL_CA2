@@ -1,4 +1,6 @@
-import copy
+import io
+
+import torch
 
 
 class Callback:
@@ -9,37 +11,73 @@ class Callback:
         return False
 
 
+
+
+class Callback:
+    """Base class -- override the hook you need."""
+
+    def on_epoch_end(self, epoch, logs, model):
+        """Return True to request that training stop."""
+        return False
+
+
 class EarlyStopping(Callback):
     """
-    PyTorch has no built-in equivalent of keras.callbacks.EarlyStopping, so this
-    reimplements it: stop once `monitor` hasn't improved by at least `min_delta`
-    for `patience` consecutive epochs, and (optionally) restore the best weights
-    seen once training ends.
+    Stop training once `monitor` hasn't improved by at least `min_delta`
+    for `patience` consecutive epochs. Optionally restore best weights.
     """
 
-    def __init__(self, monitor="val_loss", patience=15, min_delta=0.01, restore_best_weights=True):
+    def __init__(
+        self,
+        monitor: str = "val_loss",
+        patience: int = 15,
+        min_delta: float = 0.01,
+        restore_best_weights: bool = True,
+    ) -> None:
         self.monitor = monitor
         self.patience = patience
         self.min_delta = min_delta
         self.restore_best_weights = restore_best_weights
 
-        self.best = float("inf")
+        self.best_value = float("inf")
         self.best_epoch = None
-        self.best_state = None
-        self.wait = 0
+        self._wait = 0
+        self._best_buffer = None
+
+    def _is_better(self, current: float) -> bool:
+        """Check if current metric improved over best by at least min_delta."""
+        return current < self.best_value - self.min_delta
+
+    def _save_checkpoint(self, model) -> None:
+        """Serialize model state dict to an in-memory buffer."""
+        buffer = io.BytesIO()
+        torch.save(model.state_dict(), buffer)
+        self._best_buffer = buffer
+
+    def _load_checkpoint(self, model) -> None:
+        """Restore model weights from the in-memory buffer."""
+        if self._best_buffer is None:
+            return
+        self._best_buffer.seek(0)
+        state_dict = torch.load(self._best_buffer, weights_only=True)
+        model.load_state_dict(state_dict)
 
     def on_epoch_end(self, epoch, logs, model):
         current = logs[self.monitor]
-        if current < self.best - self.min_delta:
-            self.best = current
-            self.best_epoch = epoch
-            self.wait = 0
-            if self.restore_best_weights:
-                self.best_state = copy.deepcopy(model.state_dict())
-        else:
-            self.wait += 1
-        return self.wait >= self.patience
 
-    def restore(self, model):
-        if self.best_state is not None:
-            model.load_state_dict(self.best_state)
+        if self._is_better(current):
+            self.best_value = current
+            self.best_epoch = epoch
+            self._wait = 0
+            if self.restore_best_weights:
+                self._save_checkpoint(model)
+        else:
+            self._wait += 1
+
+        return self._wait >= self.patience
+
+    def restore(self, model) -> None:
+        """Restore the best weights seen during training, if enabled."""
+        if not self.restore_best_weights:
+            return
+        self._load_checkpoint(model)
