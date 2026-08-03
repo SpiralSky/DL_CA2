@@ -1,4 +1,6 @@
 import io
+from io import BytesIO
+from pathlib import Path
 
 import torch
 
@@ -9,17 +11,6 @@ class Callback:
     def on_epoch_end(self, epoch, logs, model):
         """Return True to request that training stop."""
         return False
-
-
-
-
-class Callback:
-    """Base class -- override the hook you need."""
-
-    def on_epoch_end(self, epoch, logs, model):
-        """Return True to request that training stop."""
-        return False
-
 
 class EarlyStopping(Callback):
     """
@@ -32,52 +23,54 @@ class EarlyStopping(Callback):
         monitor: str = "val_loss",
         patience: int = 15,
         min_delta: float = 0.01,
-        restore_best_weights: bool = True,
     ) -> None:
-        self.monitor = monitor
-        self.patience = patience
-        self.min_delta = min_delta
-        self.restore_best_weights = restore_best_weights
+        self.monitor_stat: str = monitor
+        self.patience: int = patience
+        self.min_delta: float = min_delta
 
-        self.best_value = float("inf")
-        self.best_epoch = None
-        self._wait = 0
-        self._best_buffer = None
+        self.best_value: float = float("inf")
+        self.best_epoch: int | None = None
+        self._wait: int = 0
+        self._best_buffer: BytesIO | None = None
 
-    def _is_better(self, current: float) -> bool:
+    def is_better(self, current: float) -> bool:
         """Check if current metric improved over best by at least min_delta."""
-        return current < self.best_value - self.min_delta
+        return current < (self.best_value - self.min_delta)
 
-    def _save_checkpoint(self, model) -> None:
-        """Serialize model state dict to an in-memory buffer."""
+    def save_checkpoint(self, model, save_path: Path | None = None) -> None:
+        """Serialize model state dict to an in-memory buffer and optionally to file."""
         buffer = io.BytesIO()
         torch.save(model.state_dict(), buffer)
+        buffer.seek(0)
         self._best_buffer = buffer
 
-    def _load_checkpoint(self, model) -> None:
-        """Restore model weights from the in-memory buffer."""
+        if save_path is not None:
+            torch.save(model.state_dict(), save_path)
+
+    def load_checkpoint(self, model, save_path: Path | None = None) -> None:
+        """Restore model weights from the in-memory buffer or file."""
+        if save_path is not None and save_path.exists():
+            state_dict = torch.load(save_path, weights_only=True)
+            model.load_state_dict(state_dict)
+            return
+
         if self._best_buffer is None:
             return
+
         self._best_buffer.seek(0)
         state_dict = torch.load(self._best_buffer, weights_only=True)
         model.load_state_dict(state_dict)
 
     def on_epoch_end(self, epoch, logs, model):
-        current = logs[self.monitor]
+        current = logs[self.monitor_stat]
 
-        if self._is_better(current):
+        if self.is_better(current):
             self.best_value = current
             self.best_epoch = epoch
             self._wait = 0
-            if self.restore_best_weights:
-                self._save_checkpoint(model)
+
+            self.save_checkpoint(model)
         else:
             self._wait += 1
 
         return self._wait >= self.patience
-
-    def restore(self, model) -> None:
-        """Restore the best weights seen during training, if enabled."""
-        if not self.restore_best_weights:
-            return
-        self._load_checkpoint(model)

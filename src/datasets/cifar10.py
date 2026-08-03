@@ -7,7 +7,7 @@ import torchvision.transforms as transforms
 from torch.utils.data import Dataset, DataLoader
 
 
-def get_dataset(data_path: Path, train: bool = True, transform=None) -> Dataset:
+def get_dataset(data_path: Path, train: bool = True, transform=None) -> torchvision.datasets.CIFAR10:
     """
     Loads the CIFAR-10 dataset.
     NOTE: transforms.ToTensor() transforms provided
@@ -23,6 +23,12 @@ def get_dataset(data_path: Path, train: bool = True, transform=None) -> Dataset:
     )
 
 def get_dataloaders(data_path: Path, core_count=2) -> tuple[DataLoader, DataLoader, DataLoader]:
+    """
+    Splits data into train, test and validation sets with ratio 70/15/15, and returns them as torch DataLoaders.
+    :param data_path: Path to dataset.
+    :param core_count: Number of core/workers to use, caps at processor's max core count - 1.
+    :return: Train DataLoader, Validation DataLoader, Test DataLoader.
+    """
     train_data, validation_data, test_data = torch.utils.data.random_split(get_dataset(data_path=data_path),[0.7, 0.15, 0.15])
 
     # Saves at least 1 cpu core to prevent overloading the cpu.
@@ -30,15 +36,15 @@ def get_dataloaders(data_path: Path, core_count=2) -> tuple[DataLoader, DataLoad
 
     train_data_loader = DataLoader(
         train_data, batch_size=256, shuffle=True,
-        num_workers=num_workers, pin_memory=True, persistent_workers=True
+        num_workers=num_workers, pin_memory=True, persistent_workers=False
     )
     val_data_loader = DataLoader(
         validation_data, batch_size=256, shuffle=False,
-        num_workers=num_workers, pin_memory=True, persistent_workers=True
+        num_workers=num_workers, pin_memory=True, persistent_workers=False
     )
     test_data_loader = DataLoader(
         validation_data, batch_size=256, shuffle=False,
-        num_workers=num_workers, pin_memory=True, persistent_workers=True
+        num_workers=num_workers, pin_memory=True, persistent_workers=False
     )
 
     return train_data_loader, val_data_loader, test_data_loader

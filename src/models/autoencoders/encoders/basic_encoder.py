@@ -2,14 +2,6 @@ import torch.nn as nn
 
 
 class BasicEncoder(nn.Module):
-    """
-    Convolutional encoder for 32x32 RGB images (e.g. CIFAR-10).
-    Maps an image to the parameters (mu, logvar) of a diagonal Gaussian
-    over the latent space. Downsamples 32 -> 16 -> 8 -> 4 via stride-2 convs,
-    with a stride-1 refinement conv at each resolution so the network has
-    capacity to learn shape/structure features before compressing further,
-    rather than immediately squeezing spatial detail into the bottleneck.
-    """
     def __init__(self, input_channels=3, output_channels=32, latent_dim=128):
         super().__init__()
 

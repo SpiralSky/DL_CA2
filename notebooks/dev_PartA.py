@@ -125,7 +125,7 @@ _LOAD_CLEAN_IMPORTS_2d36 = [
 
 # %%
 # %%load_clean
-from src.models.autoencoders.VAE import VAE # noqa: F401
+from src.models.autoencoders.BaseVAE import VAE # noqa: F401
 
 # %%
 # %%load_clean
