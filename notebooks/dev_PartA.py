@@ -68,9 +68,6 @@ _ = run_class_eda(eda_dataloader, cifar_10_dataset.classes)
 
 # %%
 # %%load_clean
-<<<<<<< HEAD
-from src.models.autoencoders.decoders.basic_decoder import *  # noqa: F401
-=======
 import src.models.VAE.decoders.decoder #noqa
 
 class BasicDecoder(nn.Module):
@@ -113,7 +110,6 @@ class BasicDecoder(nn.Module):
         h = h.view(-1, self.base_channels * 4, self.init_spatial, self.init_spatial)
         return self.deconv(h)
 
->>>>>>> 43b96fe (Updated PartA)
 
 _LOAD_CLEAN_IMPORTS_f68f = [
     BasicDecoder,
@@ -133,9 +129,6 @@ from src.models.autoencoders.VAE import VAE # noqa: F401
 
 # %%
 # %%load_clean
-<<<<<<< HEAD
-from src.models.autoencoders.model_factory import basic_autoencoder # noqa: F401
-=======
 import src.models.VAE.losses
 
 def vae_loss(recon_x, x, mu, logvar, beta=1.0, recon_loss_type="mse", free_bits=0.0):
@@ -180,7 +173,6 @@ def vae_loss(recon_x, x, mu, logvar, beta=1.0, recon_loss_type="mse", free_bits=
     }
 
 
->>>>>>> 43b96fe (Updated PartA)
 
 # %%
 # %%load_clean
