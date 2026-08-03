@@ -7,12 +7,13 @@
 
 # %% [markdown]
 # ### Imports
+# Pytorch and torchvision is used for this module
+#
+# There are also some miscellanous imports for typing, etc.
 
 # %%
-
 # <$IMPORTS>
 from pathlib import Path
-
 from torch.utils.data import DataLoader
 
 # %% [markdown]
@@ -24,6 +25,7 @@ PROJECT_ROOT = Path.cwd().parent
 
 # %% [markdown]
 # ## 0. Loading Data
+# `get_dataset` is a simple
 
 # %%
 # %%load_clean
@@ -63,8 +65,6 @@ _ = run_class_eda(eda_dataloader, cifar_10_dataset.classes)
 
 # %% [markdown]
 # ### 1. Train/Test Split
-
-# %%
 
 # %%
 # %%load_clean
@@ -111,7 +111,7 @@ class BasicDecoder(nn.Module):
         return self.deconv(h)
 
 
-_LOAD_CLEAN_IMPORTS_f68f = [
+_LOAD_CLEAN_IMPORTS_958e = [
     BasicDecoder,
 ]
 
@@ -119,7 +119,7 @@ _LOAD_CLEAN_IMPORTS_f68f = [
 # %%load_clean
 from src.models.autoencoders.encoders.basic_encoder import *  # noqa: F401
 
-_LOAD_CLEAN_IMPORTS_ec6f = [
+_LOAD_CLEAN_IMPORTS_2d36 = [
     BasicEncoder,
 ]
 
@@ -176,17 +176,6 @@ def vae_loss(recon_x, x, mu, logvar, beta=1.0, recon_loss_type="mse", free_bits=
 
 # %%
 # %%load_clean
-from src.models.autoencoders.losses import *  # noqa: F401
-
-_LOAD_CLEAN_IMPORTS_6c08 = [
-    VAELossOutput,
-    kl_divergence,
-    reconstruction_loss,
-    vae_loss,
-]
-
-# %%
-# %%load_clean
 from src.models.autoencoders.inspection.reconstructions import *  # noqa: F401
 
 _LOAD_CLEAN_IMPORTS_7b4b = [
@@ -207,3 +196,5 @@ from src.training.autoencoders.base_vae import train_base_vae  # noqa: F401
 
 # %%
 train_base_vae(PROJECT_ROOT.joinpath("data"))
+
+# %%
