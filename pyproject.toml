@@ -12,6 +12,7 @@ dependencies = [
     "matplotlib~=3.10.9",
     "nbformat>=5.10.4",
     "pandas>=2.3.3",
+    "pdoc3>=0.11.6",
     "scikit-image>=0.25.2",
     "scipy>=1.15.3",
     "torch>=2.11.0",

@@ -8,12 +8,11 @@
 # %% [markdown]
 # ### Imports
 
-import os
 # %%
+
 # <$IMPORTS>
 from pathlib import Path
 
-import torch
 from torch.utils.data import DataLoader
 
 # %% [markdown]
@@ -28,7 +27,7 @@ PROJECT_ROOT = Path.cwd().parent
 
 # %%
 # %%load_clean
-from src.datasets.cifar10 import get_dataset # noqa: F401
+from src.datasets.cifar10 import get_dataset  # noqa: F401
 
 # %%
 cifar_10_dataset = get_dataset(PROJECT_ROOT / "data")
@@ -47,7 +46,7 @@ eda_dataloader = DataLoader(cifar_10_dataset, batch_size=256, shuffle=False)
 
 # %%
 # %%load_clean
-from src.analysis.cifar10.display_images import display_images # noqa: F401
+from src.analysis.cifar10.display_images import display_images  # noqa: F401
 
 # %%
 display_images(eda_dataloader, (10, 5))
@@ -66,21 +65,10 @@ _ = run_class_eda(eda_dataloader, cifar_10_dataset.classes)
 # ### 1. Train/Test Split
 
 # %%
-train_data, validation_data = torch.utils.data.random_split(cifar_10_dataset, [0.8, 0.2])
-num_workers = min(2, os.cpu_count())
-
-train_data_loader = DataLoader(
-    train_data, batch_size=256, shuffle=True,
-    num_workers=num_workers, pin_memory=True, persistent_workers=True,
-)
-val_data_loader = DataLoader(
-    validation_data, batch_size=256, shuffle=False,
-    num_workers=num_workers, pin_memory=True, persistent_workers=True,
-)
 
 # %%
 # %%load_clean
-from src.models.autoencoders.decoders.decoder import *  # noqa: F401
+from src.models.autoencoders.decoders.basic_decoder import *  # noqa: F401
 
 _LOAD_CLEAN_IMPORTS_f68f = [
     BasicDecoder,
@@ -88,7 +76,7 @@ _LOAD_CLEAN_IMPORTS_f68f = [
 
 # %%
 # %%load_clean
-from src.models.autoencoders.encoders.encoder import *  # noqa: F401
+from src.models.autoencoders.encoders.basic_encoder import *  # noqa: F401
 
 _LOAD_CLEAN_IMPORTS_ec6f = [
     BasicEncoder,
@@ -96,7 +84,7 @@ _LOAD_CLEAN_IMPORTS_ec6f = [
 
 # %%
 # %%load_clean
-from src.models.autoencoders.models.VAE import VAE # noqa: F401
+from src.models.autoencoders.VAE import VAE # noqa: F401
 
 # %%
 # %%load_clean
@@ -123,46 +111,15 @@ _LOAD_CLEAN_IMPORTS_7b4b = [
 
 # %%
 # %%load_clean
-from src.models.training.callbacks import *  # noqa: F401
-
-_LOAD_CLEAN_IMPORTS_0936 = [
-    Callback,
-    EarlyStopping,
-]
+from src.training import *  # noqa: F401
 
 # %%
 # %%load_clean
-from src.models.training.trainer import Trainer, TrainConfig # noqa: F401
+from src.training.trainer import Trainer, TrainConfig # noqa: F401
 
 # %%
-# ─── MINIMAL TRAINER TEST ───
+# %%load_clean
+from src.training.autoencoders.base_vae import train_base_vae  # noqa: F401
 
-import torch
-
-# You already have loaded:
-#   TrainConfig, Trainer, basic_autoencoder, vae_loss, cifar_10_dataset
-#   train_data_loader, val_data_loader (from your split above)
-
-# 1. Config (short run for quick test)
-config = TrainConfig(
-    lr=1e-3,
-    max_epochs=100,           # small for speed
-    warmup_epochs=1,
-    beta_target=1.0,
-    recon_loss_type="mse",
-    free_bits=0.0,
-    grad_clip_norm=1.0,
-    scheduler_patience=5,   # won't trigger with 3 epochs
-    scheduler_factor=0.5,
-    early_stopping_patience=10,
-    early_stopping_min_delta=0.0,
-)
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"Device: {device}")
-model = basic_autoencoder(in_channels=3, base_channels=32, latent_dim=128).to(device)
-
-trainer = Trainer(config=config, device=device)
-history = trainer.fit(model, train_data_loader, val_data_loader)
-
-print(f"\n✅ Done. Trained {len(history)} epochs.")
+# %%
+train_base_vae(PROJECT_ROOT.joinpath("data"))
