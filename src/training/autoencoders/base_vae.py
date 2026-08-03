@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import torch
-from src.training.trainer import fit
 from src.datasets.cifar10 import get_dataloaders
 from src.models.autoencoders.model_factory import basic_vae
 
