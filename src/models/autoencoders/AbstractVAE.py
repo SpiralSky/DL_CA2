@@ -15,7 +15,6 @@ class VAETrainConfig(TypedDict):
     grad_clip_norm: float
     free_bits: float
 
-
 class AbstractVAE(nn.Module):
     def __init__(self, latent_dim: int):
         super().__init__()
@@ -106,37 +105,25 @@ class AbstractVAE(nn.Module):
         max_epochs: int,
         lr: float,
         grad_clip_norm: float,
-        warmup_epochs: int = 0,
-        beta_target: float = 1.0,
         recon_loss_type: str = "mse",
         free_bits: float = 0.0,
-        scheduler_patience: int = 5,
-        scheduler_factor: float = 0.5,
         early_stopping_patience: int = 10,
         early_stopping_min_delta: float = 0.0,
         *,
         optimizer: torch.optim.Optimizer | None = None,
         scheduler: torch.optim.lr_scheduler._LRScheduler | None = None,
-        early_stopping=None,  # type: ignore
-        beta_schedule_fn: Callable[[int, int, float], float] | None = None,
+        early_stopping=None
     ) -> list[dict]:
         if optimizer is None:
             optimizer = torch.optim.Adam(self.parameters(), lr=lr)
 
         if scheduler is None:
             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizer, mode="min", patience=scheduler_patience, factor=scheduler_factor
+                optimizer, mode="min", patience=5, factor=-.5
             )
-
-        if beta_schedule_fn is None:
-            beta_schedule_fn = self._default_beta_schedule
 
         if early_stopping is None:
-            early_stopping = EarlyStopping(
-                monitor="val_loss",
-                patience=early_stopping_patience,
-                min_delta=early_stopping_min_delta,
-            )
+            early_stopping = EarlyStopping(monitor="val_loss")
 
         config: VAETrainConfig = {
             "recon_loss_type": recon_loss_type,  # type: ignore
@@ -147,7 +134,6 @@ class AbstractVAE(nn.Module):
         history = []
 
         for epoch in range(1, max_epochs + 1):
-            beta = beta_schedule_fn(epoch, warmup_epochs, beta_target)
             start = time.time()
 
             train_metrics = self.run_epoch(
@@ -156,13 +142,14 @@ class AbstractVAE(nn.Module):
             val_metrics = self.run_epoch(
                 val_loader, device, optimizer, config, train=False
             )
+
             scheduler.step(val_metrics["total"])
+
             elapsed = time.time() - start
 
             logs = {
                 "epoch": epoch,
                 "max_epochs": max_epochs,
-                "beta": beta,
                 "lr": optimizer.param_groups[0]["lr"],
                 "time": elapsed,
                 "loss": train_metrics["total"],
@@ -176,27 +163,21 @@ class AbstractVAE(nn.Module):
             print(
                 f"epoch {epoch}/{max_epochs}  "
                 f"loss={logs['loss']:.2f}  recon={logs['recon']:.2f}  kl={logs['kl']:.2f}  "
-                f"beta={beta:.3f}  lr={logs['lr']:.2e}  time={elapsed:.1f}s  "
+                f"lr={logs['lr']:.2e}  time={elapsed:.1f}s  "
                 f"val_loss={logs['val_loss']:.2f}"
             )
 
-            if beta >= beta_target:
-                if early_stopping.on_epoch_end(epoch, logs, self):
-                    print(
-                        f"\nearly stopping at epoch {epoch} "
-                        f"(no improvement > {early_stopping_min_delta} "
-                        f"for {early_stopping_patience} epochs)"
-                    )
-                    break
+            if early_stopping.on_epoch_end(epoch, logs, self):
+                print(
+                    f"\nEarly stopping at epoch {epoch} "
+                    f"(no improvement > {early_stopping_min_delta} "
+                    f"for {early_stopping_patience} epochs)"
+                )
+                break
 
         early_stopping.load_checkpoint(self)
+
         if early_stopping.best_value is not None:
-            print(f"restored best model weights (val_loss={early_stopping.best_value:.2f})")
+            print(f"Restored best model weights (val_loss={early_stopping.best_value:.2f})")
 
         return history
-
-    @staticmethod
-    def _default_beta_schedule(epoch: int, warmup_epochs: int, beta_target: float) -> float:
-        if warmup_epochs <= 0:
-            return beta_target
-        return min(beta_target, beta_target * epoch / warmup_epochs)

@@ -54,7 +54,7 @@ from src.analysis.cifar10.display_images import display_images  # noqa: F401
 display_images(eda_dataloader, (10, 5))
 
 # %% [markdown]
-# ### EDA
+# ### 1.2. Pixel-based image analysis
 
 # %%
 # %%load_clean
@@ -64,15 +64,24 @@ from src.analysis.analyse_images import run_class_eda # noqa: F401
 _ = run_class_eda(eda_dataloader, cifar_10_dataset.classes)
 
 # %% [markdown]
-# ### 1. Train/Test Split
+# ## 2. Models
+
+# %% [markdown]
+# ### 2.1. Splitting Data
+# Pytorch's `DataLoader` class is used to split data into **80/15/15** distributions amongst train, test and split.
+#
+# Test set is withheld during experiments.
 
 # %%
 # %%load_clean
-from src.models.autoencoders.decoders.basic_decoder import *  # noqa: F401
+from src.datasets.cifar10 import get_dataloaders  # noqa: F401
 
-_LOAD_CLEAN_IMPORTS_958e = [
-    BasicDecoder,
-]
+# %% [markdown]
+# ### 2.2. Basic Encoder and Decoder
+# We first used a basic Encoder and Decoder setup.
+#
+# For the Encoder:
+# - A Convolutional Layers are used
 
 # %%
 # %%load_clean
@@ -84,11 +93,32 @@ _LOAD_CLEAN_IMPORTS_2d36 = [
 
 # %%
 # %%load_clean
+from src.models.autoencoders.decoders.basic_decoder import *  # noqa: F401
+
+_LOAD_CLEAN_IMPORTS_958e = [
+    BasicDecoder,
+]
+
+# %%
+# %%load_clean
 from src.models.autoencoders.model_factory import basic_vae # noqa: F401
 
 # %%
 # %%load_clean
-from src.models.autoencoders.BaseVAE import VAE # noqa: F401
+from src.models.autoencoders.AbstractVAE import *  # noqa: F401
+
+_LOAD_CLEAN_IMPORTS_8162 = [
+    AbstractVAE,
+    VAETrainConfig,
+]
+
+# %%
+# %%load_clean
+from src.models.autoencoders.VAE import *  # noqa: F401
+
+_LOAD_CLEAN_IMPORTS_6760 = [
+    VAE,
+]
 
 # %%
 # %%load_clean

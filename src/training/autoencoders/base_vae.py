@@ -3,6 +3,7 @@ from pathlib import Path
 import torch
 from src.datasets.cifar10 import get_dataloaders
 from src.models.autoencoders.model_factory import basic_vae
+from src.models.autoencoders.inspection.reconstructions import plot_reconstructions
 
 config = {
     "recon_loss_type": "mse",
@@ -17,20 +18,17 @@ def train_base_vae(data_path: Path):
     print(f"Device: {device}")
     model = basic_vae(latent_dim=128).to(device)
 
+
     history = model.fit(
         train_loader=train_dataloader,
         val_loader=val_dataloader,
         device=device,
         max_epochs=100,
-        lr=1e-3,
+        lr=3e-3,
         grad_clip_norm=1.0,
-        warmup_epochs=1,
-        beta_target=1.0,
-        recon_loss_type="mse",
-        free_bits=0.0,
-        scheduler_patience=5,
-        scheduler_factor=0.5,
-        early_stopping_patience=10,
-        early_stopping_min_delta=0.0,
+        free_bits=0.4
     )
+
+    plot_reconstructions(model, test_dataloader)
+
     print(f"\nDone. Trained {len(history)} epochs.")

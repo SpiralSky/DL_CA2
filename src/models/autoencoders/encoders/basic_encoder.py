@@ -3,7 +3,7 @@ from IPython.core.magic import output_can_be_silenced
 
 
 class BasicEncoder(nn.Module):
-    def __init__(self, latent_dim: int = 128):
+    def __init__(self, latent_dim: int = 256):
         """
         Basic Encoder
         Input: Image with 3 channels
@@ -13,29 +13,25 @@ class BasicEncoder(nn.Module):
 
         # NOTE: stride=2, kernel_size=3, and padding=1 makes Image dimensions halve each 2D convolution.
         # It is used in place of MaxPooling to preserve image.
-        # Image Dimensions: 32 -> 16 -> 8 -> 4 -> 2
+        # Image Dimensions: 32 -> 16 -> 8 -> 4
         self.features = nn.Sequential(
-            nn.Conv2d(3, 8, kernel_size=3, stride=2, padding=1),
-            nn.BatchNorm2d(8),
-            nn.LeakyReLU(0.2, inplace=True),
-
-            nn.Conv2d(8, 16, kernel_size=3, stride=2, padding=1),
-            nn.BatchNorm2d(16),
-            nn.LeakyReLU(0.2, inplace=True),
-
-            nn.Conv2d(16, 32, kernel_size=3, stride=2, padding=1),
-            nn.BatchNorm2d(32),
-            nn.LeakyReLU(0.2, inplace=True),
-
-            nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),
-            nn.BatchNorm2d(64),
-            nn.LeakyReLU(0.2, inplace=True),
+            BasicEncoder.down_block(3, 64),
+            BasicEncoder.down_block(64, 128),
+            BasicEncoder.down_block(128, 256),
 
             nn.Flatten()
         )
 
-        self.mean = nn.Linear(256, latent_dim)
-        self.log_variance = nn.Linear(256, latent_dim)
+        self.mean = nn.Linear(4096, latent_dim)
+        self.log_variance = nn.Linear(4096, latent_dim)
+
+    @staticmethod
+    def down_block(in_channels: int, out_channels: int) -> nn.Sequential:
+        return nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=2, padding=1),
+            nn.BatchNorm2d(out_channels),
+            nn.LeakyReLU(0.2, inplace=True),
+        )
 
     def forward(self, inputs):
         feature_maps = self.features(inputs)
