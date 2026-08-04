@@ -189,7 +189,7 @@ class AbstractVAE(nn.Module):
                     )
                     break
 
-        early_stopping.restore(self)
+        early_stopping.load_checkpoint(self)
         if early_stopping.best_value is not None:
             print(f"restored best model weights (val_loss={early_stopping.best_value:.2f})")
 

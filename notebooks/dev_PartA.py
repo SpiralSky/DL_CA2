@@ -84,11 +84,11 @@ _LOAD_CLEAN_IMPORTS_2d36 = [
 
 # %%
 # %%load_clean
-from src.models.autoencoders.BaseVAE import VAE # noqa: F401
+from src.models.autoencoders.model_factory import basic_vae # noqa: F401
 
 # %%
 # %%load_clean
-from src.models.autoencoders.model_factory import basic_vae # noqa: F401
+from src.models.autoencoders.BaseVAE import VAE # noqa: F401
 
 # %%
 # %%load_clean
@@ -104,14 +104,10 @@ from src.training import *  # noqa: F401
 
 # %%
 # %%load_clean
-from src.training.trainer import Trainer, TrainConfig # noqa: F401
-
-# %%
-# %%load_clean
 from src.training.autoencoders.base_vae import train_base_vae  # noqa: F401
 
 # %%
-# train_base_vae(PROJECT_ROOT.joinpath("data"))
+train_base_vae(PROJECT_ROOT.joinpath("data"))
 
 # %%
 # %%load_clean

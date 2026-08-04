@@ -15,7 +15,7 @@ def train_base_vae(data_path: Path):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
-    model = basic_vae(in_channels=3, base_channels=32, latent_dim=128).to(device)
+    model = basic_vae(latent_dim=128).to(device)
 
     history = model.fit(
         train_loader=train_dataloader,
