@@ -1,4 +1,3 @@
-# abstract_vae.py
 from typing import Callable, Literal, TypedDict
 
 import time
@@ -8,7 +7,6 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 from src.training.callbacks import EarlyStopping
-
 
 class VAETrainConfig(TypedDict):
     recon_loss_type: Literal["mse", "bce"]

@@ -1,11 +1,9 @@
 from pathlib import Path
 
 import torch
-from torch import nn
 from torch.utils.data import DataLoader
 
 from src.models.autoencoders.VAE import VAE
-from src.models.autoencoders.inspection.view_class_samples import view_class_samples
 from src.models.inspection.plot_gradients import plot_gradient_flow
 from src.models.autoencoders.inspection.latent_space import analyze_latent_space
 from src.datasets.cifar10 import get_dataloaders, get_dataset
@@ -44,7 +42,7 @@ def view_model_results(model: VAE, test_dataloader: DataLoader, class_names: lis
     plot_reconstructions(model, test_dataloader)
     analyze_latent_space(model, test_dataloader, class_names=class_names)
     plot_gradient_flow(model)
-    model.view_class_samples(test_dataloader, n_images=10)
+    model.plot_class_samples(test_dataloader)
 
 def train_and_analysis(data_path: Path) -> None:
     model, test_dataloader, class_names = train_base_vae(data_path)
