@@ -17,15 +17,14 @@ from skimage.filters import laplace
 
 def accumulate_pixel_statistics(dataloader, num_classes):
     """
-    Single pass over the DataLoader, accumulating running sums needed for
-    per-class mean/std, without holding the full dataset in memory.
+    Do a single pass over the DataLoader, accumulating running sums needed
+    for per-class mean/std, without holding the full dataset in memory.
 
-    Returns a dict of tensors, each indexed by class:
-        count:      (num_classes,)          number of images per class
-        sum_:       (num_classes, C)        running per-channel sum
-        sumsq:      (num_classes, C)        running per-channel sum of squares
-        brightness_sum:    (num_classes,)   running sum of per-image mean brightness
-        brightness_sumsq:  (num_classes,)   running sum of squared per-image brightness
+    :param dataloader: PyTorch DataLoader yielding (images, labels) batches.
+    :param num_classes: Total number of classes in the dataset.
+    :return: dict with keys "count" (num_classes,), "pixels_per_image" (int),
+        "sum_" (num_classes, C), "sumsq" (num_classes, C),
+        "brightness_sum" (num_classes,), "brightness_sumsq" (num_classes,).
     """
     images, _ = next(iter(dataloader))
     num_channels = images.shape[1]
@@ -62,7 +61,9 @@ def accumulate_pixel_statistics(dataloader, num_classes):
 def compute_channel_mean_std(accum):
     """
     Convert accumulated sums into per-class, per-channel mean and std.
-    Returns two (num_classes, C) tensors.
+
+    :param accum: Accumulator dict returned by accumulate_pixel_statistics.
+    :return: Tuple (mean, std), each a (num_classes, C) tensor.
     """
     n_pixels = accum["count"].unsqueeze(1) * accum["pixels_per_image"]
     mean = accum["sum_"] / n_pixels
@@ -74,7 +75,9 @@ def compute_channel_mean_std(accum):
 def compute_brightness_mean_std(accum):
     """
     Convert accumulated brightness sums into per-class mean and std.
-    Returns two (num_classes,) tensors.
+
+    :param accum: Accumulator dict returned by accumulate_pixel_statistics.
+    :return: Tuple (mean, std), each a (num_classes,) tensor.
     """
     n = accum["count"]
     mean = accum["brightness_sum"] / n
@@ -86,9 +89,13 @@ def compute_brightness_mean_std(accum):
 def compute_texture_scores(dataloader, num_classes, samples_per_class=200):
     """
     Estimate per-class texture/edge density using Laplacian variance on a
-    grayscale-averaged version of each image. Subsamples for speed since this
-    runs on CPU via scikit-image rather than as a batched tensor op.
-    Returns a (num_classes,) tensor of mean edge variance per class.
+    grayscale-averaged version of each image. Subsamples for speed since
+    this runs on CPU via scikit-image rather than as a batched tensor op.
+
+    :param dataloader: PyTorch DataLoader yielding (images, labels) batches.
+    :param num_classes: Total number of classes in the dataset.
+    :param samples_per_class: Max number of images sampled per class.
+    :return: (num_classes,) tensor of mean edge variance per class.
     """
     collected = {c: [] for c in range(num_classes)}
     remaining = {c: samples_per_class for c in range(num_classes)}
@@ -110,9 +117,18 @@ def compute_texture_scores(dataloader, num_classes, samples_per_class=200):
 def build_stats_dataframe(class_names, count, channel_mean, brightness_mean,
                            brightness_std, texture_scores=None):
     """
-    Assembles per-class statistics into a pandas DataFrame, one row per class.
-    Kept separate from display logic so the raw table can also be inspected,
-    filtered, or exported (e.g. df.to_csv()) without touching styling code.
+    Assemble per-class statistics into a pandas DataFrame, one row per
+    class. Kept separate from display logic so the raw table can also be
+    inspected, filtered, or exported (e.g. df.to_csv()) without touching
+    styling code.
+
+    :param class_names: List of class name strings, in class-index order.
+    :param count: (num_classes,) tensor of image counts per class.
+    :param channel_mean: (num_classes, C) tensor of per-channel means.
+    :param brightness_mean: (num_classes,) tensor of mean brightness per class.
+    :param brightness_std: (num_classes,) tensor of brightness std per class.
+    :param texture_scores: Optional (num_classes,) tensor of texture scores.
+    :return: pandas DataFrame indexed by class name.
     """
     data = {
         "n": count.numpy().astype(int),
@@ -130,8 +146,10 @@ def build_stats_dataframe(class_names, count, channel_mean, brightness_mean,
 
 def is_notebook_environment():
     """
-    Detects whether code is running inside a Jupyter kernel, so display
+    Detect whether code is running inside a Jupyter kernel, so display
     logic can choose between rich HTML output and a plain-text fallback.
+
+    :return: True if running in a Jupyter (ZMQInteractiveShell) kernel, else False.
     """
     try:
         from IPython import get_ipython
@@ -143,9 +161,13 @@ def is_notebook_environment():
 
 def style_stats_dataframe(df):
     """
-    Applies conditional formatting: color gradients on the RGB/brightness
-    columns so intensity differences are visible at a glance, and an inline
-    bar chart on the texture column so relative magnitude reads instantly.
+    Apply conditional formatting: color gradients on the RGB/brightness
+    columns so intensity differences are visible at a glance, and an
+    inline bar chart on the texture column so relative magnitude reads
+    instantly.
+
+    :param df: Stats DataFrame from build_stats_dataframe.
+    :return: pandas Styler object with formatting applied.
     """
     mean_columns = [c for c in df.columns if c.startswith("mean_")]
     styler = (
@@ -161,8 +183,11 @@ def style_stats_dataframe(df):
 
 def display_class_statistics(df):
     """
-    Renders the stats table as a styled HTML table in Jupyter, or a plain
+    Render the stats table as a styled HTML table in Jupyter, or a plain
     aligned text table otherwise (e.g. running as a plain .py script).
+
+    :param df: Stats DataFrame from build_stats_dataframe.
+    :return: None.
     """
     if is_notebook_environment():
         display(style_stats_dataframe(df))
@@ -171,6 +196,14 @@ def display_class_statistics(df):
 
 
 def plot_class_balance(class_names, count, ax=None):
+    """
+    Plot a bar chart of image counts per class.
+
+    :param class_names: List of class name strings, in class-index order.
+    :param count: (num_classes,) tensor of image counts per class.
+    :param ax: Optional matplotlib Axes to draw on; creates its own figure if None.
+    :return: None.
+    """
     standalone = ax is None
     if standalone:
         fig, ax = plt.subplots(figsize=(8, 5))
@@ -185,6 +218,15 @@ def plot_class_balance(class_names, count, ax=None):
 
 
 def plot_channel_means(class_names, channel_mean, channel_names=("R", "G", "B"), ax=None):
+    """
+    Plot mean channel intensity per class as one line per channel.
+
+    :param class_names: List of class name strings, in class-index order.
+    :param channel_mean: (num_classes, C) tensor of per-channel means.
+    :param channel_names: Names of each channel, used for labels/colors.
+    :param ax: Optional matplotlib Axes to draw on; creates its own figure if None.
+    :return: None.
+    """
     standalone = ax is None
     if standalone:
         fig, ax = plt.subplots(figsize=(8, 5))
@@ -203,6 +245,15 @@ def plot_channel_means(class_names, channel_mean, channel_names=("R", "G", "B"),
 
 
 def plot_texture_scores(class_names, texture_scores, ax=None):
+    """
+    Plot texture (edge variance) per class as a bar chart, sorted
+    descending.
+
+    :param class_names: List of class name strings, in class-index order.
+    :param texture_scores: (num_classes,) tensor of texture scores.
+    :param ax: Optional matplotlib Axes to draw on; creates its own figure if None.
+    :return: None.
+    """
     standalone = ax is None
     if standalone:
         fig, ax = plt.subplots(figsize=(8, 5))
@@ -219,11 +270,17 @@ def plot_texture_scores(class_names, texture_scores, ax=None):
 
 def plot_class_eda_dashboard(class_names, count, channel_mean, texture_scores=None):
     """
-    Docks the individual plots into a single composite figure. Texture scores
-    (which vary meaningfully per class) take the tall left spot; channel means
-    and class balance (constant across classes, so demoted) are stacked on
-    the right. Each plot function is unchanged and just handed an ax to draw
-    on instead of creating its own figure.
+    Dock the individual plots into a single composite figure. Texture
+    scores (which vary meaningfully per class) take the tall left spot;
+    channel means and class balance (constant across classes, so demoted)
+    are stacked on the right. Each plot function is unchanged and just
+    handed an ax to draw on instead of creating its own figure.
+
+    :param class_names: List of class name strings, in class-index order.
+    :param count: (num_classes,) tensor of image counts per class.
+    :param channel_mean: (num_classes, C) tensor of per-channel means.
+    :param texture_scores: Optional (num_classes,) tensor of texture scores.
+    :return: None.
     """
     if texture_scores is None:
         fig, (ax_means, ax_balance) = plt.subplots(1, 2, figsize=(12, 5))
@@ -256,8 +313,15 @@ def plot_class_eda_dashboard(class_names, count, channel_mean, texture_scores=No
 
 def run_class_eda(dataloader, class_names, compute_texture=True, samples_per_class=200):
     """
-    Orchestrator: runs the full per-class EDA pipeline, prints statistics,
-    and displays plots docked into a single dashboard figure.
+    Orchestrate the full per-class EDA pipeline: compute statistics,
+    print them, and display plots docked into a single dashboard figure.
+
+    :param dataloader: PyTorch DataLoader yielding (images, labels) batches.
+    :param class_names: List of class name strings, in class-index order.
+    :param compute_texture: Whether to compute texture (edge variance) scores.
+    :param samples_per_class: Max number of images sampled per class for texture.
+    :return: dict with keys "stats_df", "count", "channel_mean", "channel_std",
+        "brightness_mean", "brightness_std", "texture_scores".
     """
     num_classes = len(class_names)
 
