@@ -4,7 +4,7 @@ from pathlib import Path
 import torch
 import torchvision
 import torchvision.transforms as transforms
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
 
 
 def get_dataset(data_path: Path, train: bool = True, transform=None) -> torchvision.datasets.CIFAR10:

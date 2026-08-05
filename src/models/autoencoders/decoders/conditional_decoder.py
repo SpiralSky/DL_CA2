@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+
 from src.models.autoencoders.decoders.basic_decoder import BasicDecoder
 
 

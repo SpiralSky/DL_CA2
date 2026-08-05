@@ -2,9 +2,8 @@ from pathlib import Path
 
 import torch
 
-from src.datasets.cifar10 import get_dataset
-from src.datasets.cifar10 import get_dataloaders
-from src.models.autoencoders.model_factory import conditional_vae
+from src.datasets.cifar10 import get_dataset, get_dataloaders
+from src.models.autoencoders.model_factory import beta_conditional_vae
 
 
 def train_conditional_vae(data_path: Path):
@@ -14,7 +13,7 @@ def train_conditional_vae(data_path: Path):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     print(f"Device: {device}")
-    model = conditional_vae(len(dataset.classes), in_channels=3, base_channels=32, latent_dim=128).to(device)
+    model = beta_conditional_vae(len(dataset.classes), in_channels=3, base_channels=32, latent_dim=128).to(device)
 
     history = model.fit(
         train_loader=train_dataloader,

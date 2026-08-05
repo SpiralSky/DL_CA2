@@ -1,5 +1,4 @@
 import torch.nn as nn
-from IPython.core.magic import output_can_be_silenced
 
 
 class BasicEncoder(nn.Module):

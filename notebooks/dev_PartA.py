@@ -14,6 +14,7 @@
 # %%
 # <$IMPORTS>
 from pathlib import Path
+
 from torch.utils.data import DataLoader
 
 # %% [markdown]
@@ -172,6 +173,8 @@ train_base_vae(PROJECT_ROOT.joinpath("data"))
 
 # %% [markdown]
 # ### 3.2. Analysis of Base VAE results
+
+# %%
 
 # %%
 # train_conditional_vae(PROJECT_ROOT.joinpath("data"))

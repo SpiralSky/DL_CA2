@@ -1,12 +1,13 @@
-from typing import Callable, Literal, TypedDict
-
 import time
+from typing import Literal, TypedDict
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 from src.training.callbacks import EarlyStopping
+
 
 class VAETrainConfig(TypedDict):
     recon_loss_type: Literal["mse", "bce"]
@@ -70,7 +71,6 @@ class AbstractVAE(nn.Module):
                 if train:
                     optimizer.zero_grad()
 
-                # VAE only needs images
                 recon, mu, logvar = self(images)
                 losses = self.get_loss(
                     recon,
@@ -105,8 +105,6 @@ class AbstractVAE(nn.Module):
         grad_clip_norm: float,
         recon_loss_type: str = "mse",
         free_bits: float = 0.0,
-        early_stopping_patience: int = 10,
-        early_stopping_min_delta: float = 0.0,
         *,
         optimizer: torch.optim.Optimizer | None = None,
         scheduler: torch.optim.lr_scheduler._LRScheduler | None = None,
@@ -117,7 +115,7 @@ class AbstractVAE(nn.Module):
 
         if scheduler is None:
             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizer, mode="min", patience=5, factor=-.5
+                optimizer, mode="min", patience=5, factor=0.5
             )
 
         if early_stopping is None:
@@ -168,8 +166,8 @@ class AbstractVAE(nn.Module):
             if early_stopping.on_epoch_end(epoch, logs, self):
                 print(
                     f"\nEarly stopping at epoch {epoch} "
-                    f"(no improvement > {early_stopping_min_delta} "
-                    f"for {early_stopping_patience} epochs)"
+                    f"(no improvement > {early_stopping.min_delta} "
+                    f"for {early_stopping.patience} epochs)"
                 )
                 break
 
