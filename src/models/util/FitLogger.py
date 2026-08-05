@@ -1,10 +1,17 @@
-from typing import Mapping, Any
+from typing import Mapping, Any, Iterable
 
 
 class FitLogger:
-    def __init__(self, verbose: bool = True):
+    def __init__(
+        self,
+        verbose: bool = True,
+        *,
+        include: Iterable[str] | None = None,
+        exclude: Iterable[str] | None = None,
+    ):
         self.verbose = verbose
-        self.history: list[dict[str, Any]] = []
+        self.include = set(include) if include else None
+        self.exclude = set(exclude) if exclude else set()
 
     def log(
         self,
@@ -16,7 +23,7 @@ class FitLogger:
         extra: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
 
-        logs: dict[str, Any] = {
+        logs = {
             "epoch": epoch,
             "max_epochs": max_epochs,
             **{
@@ -32,50 +39,54 @@ class FitLogger:
         if extra:
             logs.update(extra)
 
-        self.history.append(logs)
-
         if self.verbose:
             self.print(logs)
 
         return logs
 
+    def should_log(self, key: str) -> bool:
+        if key in self.exclude:
+            return False
+
+        if self.include is not None:
+            return key in self.include
+
+        return True
+
     def print(self, logs: Mapping[str, Any]) -> None:
-        train = []
-        val = []
-        extra = []
+        parts = [
+            f"Epoch {logs['epoch']}/{logs['max_epochs']}"
+        ]
 
-        for key, value in logs.items():
-            if key in {"epoch", "max_epochs"}:
-                continue
+        for group in ("train", "val", "extra"):
+            metrics = []
 
-            item = self.format_value(key, value)
+            for key, value in logs.items():
+                if not self.should_log(key):
+                    continue
 
-            if key.startswith("val_"):
-                val.append(item)
-            elif key in {"lr", "time"}:
-                extra.append(item)
-            else:
-                train.append(item)
+                if group == "train" and key.startswith("val_"):
+                    continue
 
-        message = f"Epoch {logs['epoch']}/{logs['max_epochs']}"
+                if group == "val" and not key.startswith("val_"):
+                    continue
 
-        if train:
-            message += " | " + " ".join(train)
+                if group == "extra" and key not in {"lr", "time"}:
+                    continue
 
-        if val:
-            message += " | " + " ".join(val)
+                metrics.append(self.format_value(key, value))
 
-        if extra:
-            message += " | " + " ".join(extra)
+            if metrics:
+                parts.append(" ".join(metrics))
 
-        print(message)
+        print(" | ".join(parts))
 
     def format_value(self, key: str, value: Any) -> str:
         if key == "lr":
-            return f"lr={value:.2e}"
+            return f"{key}={value:.2e}"
 
         if key == "time":
-            return f"time={value:.1f}s"
+            return f"{key}={value:.1f}s"
 
         if isinstance(value, float):
             return f"{key}={value:.4f}"

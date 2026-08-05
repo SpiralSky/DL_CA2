@@ -1,5 +1,5 @@
 import time
-from typing import Literal, TypedDict
+from typing import Literal, TypedDict, Any
 
 import torch
 import torch.nn as nn
@@ -131,7 +131,14 @@ class AbstractVAE(nn.Module):
             "grad_clip_norm": grad_clip_norm,
         }
 
-        logger = FitLogger()
+        history: list[dict[str, Any]] = []
+
+        logger = FitLogger(
+            exclude={
+                "grad_mean",
+                "grad_std",
+            }
+        )
 
         for epoch in range(1, max_epochs + 1):
             start = time.time()
@@ -139,6 +146,8 @@ class AbstractVAE(nn.Module):
             train_metrics = self.run_epoch(train_loader, device, optimizer, config, train=True)
 
             val_metrics = self.run_epoch(val_loader, device, optimizer, config, train=False)
+
+            grad_metrics = self.get_gradient_stats()
 
             scheduler.step(val_metrics["total"])
 
@@ -148,21 +157,16 @@ class AbstractVAE(nn.Module):
                 train=train_metrics,
                 val=val_metrics,
                 extra={
+                    **grad_metrics,
                     "lr": optimizer.param_groups[0]["lr"],
                     "time": time.time() - start,
                 },
             )
 
+            history.append(logs)
+
             if message := early_stopping.on_epoch_end(epoch, logs, self):
                 print(message)
                 break
 
-        early_stopping.load_checkpoint(self)
-
-        if early_stopping.best_value is not None:
-            print(
-                f"Restored best model weights "
-                f"(val_loss={early_stopping.best_value:.2f})"
-            )
-
-        return logger.history
+        return history
