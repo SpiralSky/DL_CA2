@@ -44,7 +44,7 @@ def view_model_results(model: VAE, test_dataloader: DataLoader, class_names: lis
     plot_reconstructions(model, test_dataloader)
     analyze_latent_space(model, test_dataloader, class_names=class_names)
     plot_gradient_flow(model)
-    view_class_samples(model, test_dataloader, 5)
+    model.view_class_samples(test_dataloader, n_images=10)
 
 def train_and_analysis(data_path: Path) -> None:
     model, test_dataloader, class_names = train_base_vae(data_path)
