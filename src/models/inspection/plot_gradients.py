@@ -3,31 +3,41 @@ from matplotlib import pyplot as plt
 
 
 def plot_gradient_flow(model: nn.Module) -> plt.Figure:
-    names, means, maxs = [], [], []
+    layer_names = []
+    mean_gradients = []
+    max_gradients = []
 
-    for n, p in model.named_parameters():
-        if p.grad is None:
+    for parameter_name, parameter in model.named_parameters():
+        if parameter.grad is None:
             continue
-        names.append(n)
-        means.append(p.grad.abs().mean().item())
-        maxs.append(p.grad.abs().max().item())
+
+        layer_names.append(parameter_name)
+        mean_gradients.append(parameter.grad.abs().mean().item())
+        max_gradients.append(parameter.grad.abs().max().item())
 
     fig, ax = plt.subplots(figsize=(12, 6))
-    x = range(len(names))
+    x_positions = range(len(layer_names))
 
-    ax.bar(x, means, color="steelblue", label="mean")
-    ax.bar(x, maxs, color="coral", alpha=0.6, label="max")
+    ax.bar(x_positions, mean_gradients, color="steelblue", label="Mean")
+    ax.bar(x_positions, max_gradients, color="coral", alpha=0.6, label="Max")
 
-    for i, m in enumerate(means):
-        if m == 0:
-            ax.text(i, ax.get_ylim()[0] * 2, "∅", ha="center", fontsize=7, color="red")
+    for index, mean_gradient in enumerate(mean_gradients):
+        if mean_gradient == 0:
+            ax.text(
+                index,
+                ax.get_ylim()[0] * 2,
+                "∅",
+                ha="center",
+                fontsize=7,
+                color="red",
+            )
 
-    ax.set_xticks(x)
-    ax.set_xticklabels(names, rotation=90, fontsize=6)
+    ax.set_xticks(x_positions)
+    ax.set_xticklabels(layer_names, rotation=90, fontsize=6)
     ax.set_ylabel("Gradient Magnitude (log scale)")
     ax.set_title("Gradient Flow Per Layer")
     ax.set_yscale("log")
     ax.legend()
 
-    plt.tight_layout()
+    fig.tight_layout()
     return fig
