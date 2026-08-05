@@ -157,10 +157,10 @@ class AbstractVAE(nn.Module):
                 train=train_metrics,
                 val=val_metrics,
                 extra={
-                    **grad_metrics,
+                    "gradients": self.get_gradient_stats(),
                     "lr": optimizer.param_groups[0]["lr"],
                     "time": time.time() - start,
-                },
+                }
             )
 
             history.append(logs)
@@ -170,3 +170,20 @@ class AbstractVAE(nn.Module):
                 break
 
         return history
+
+    def get_gradient_stats(self) -> dict[str, dict[str, float]]:
+        gradients = {}
+
+        for name, param in self.named_parameters():
+            if param.grad is None:
+                continue
+
+            grad = param.grad.detach().abs()
+
+            gradients[name] = {
+                "mean": grad.mean().item(),
+                "max": grad.max().item(),
+                "norm": grad.norm().item(),
+            }
+
+        return gradients

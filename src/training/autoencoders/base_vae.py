@@ -10,7 +10,7 @@ from src.models.autoencoders.VAE import VAE
 from src.models.autoencoders.inspection.latent_space import analyze_latent_space
 from src.models.autoencoders.inspection.reconstructions import plot_reconstructions
 from src.models.autoencoders.model_factory import basic_vae
-from src.models.inspection.plot_gradients import plot_gradient_flow
+from src.models.inspection.plot_gradients import plot_gradient_history
 
 config = {
     "recon_loss_type": "mse",
@@ -44,6 +44,7 @@ def view_model_results(
     model: VAE,
     test_dataloader: DataLoader,
     class_names: list,
+    history: list[dict]
 ) -> Figure:
     dashboard = plt.figure(
         figsize=(18, 18),
@@ -84,8 +85,8 @@ def view_model_results(
         fig=classes_subfig,
     )
 
-    plot_gradient_flow(
-        model,
+    plot_gradient_history(
+        history=history,
         fig=gradient_subfig,
     )
 
@@ -93,8 +94,8 @@ def view_model_results(
 
     return dashboard
 def train_and_analysis(data_path: Path) -> None:
-    model, test_dataloader, class_names = train_base_vae(data_path)
-    view_model_results(model, test_dataloader, class_names)
+    model, test_dataloader, class_names, history = train_base_vae(data_path)
+    view_model_results(model, test_dataloader, class_names, history)
 
 
 
