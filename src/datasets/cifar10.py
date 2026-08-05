@@ -22,7 +22,7 @@ def get_dataset(data_path: Path, train: bool = True, transform=None) -> torchvis
         root=data_path, train=train, download=True, transform=transform
     )
 
-def get_dataloaders(data_path: Path, core_count=2) -> tuple[DataLoader, DataLoader, DataLoader]:
+def get_dataloaders(data_path: Path, core_count=2, batch_size=256) -> tuple[DataLoader, DataLoader, DataLoader]:
     """
     Splits data into train, test and validation sets with ratio 70/15/15, and returns them as torch DataLoaders.
     :param data_path: Path to dataset.
@@ -35,15 +35,15 @@ def get_dataloaders(data_path: Path, core_count=2) -> tuple[DataLoader, DataLoad
     num_workers = min(core_count, os.cpu_count() - 1)
 
     train_data_loader = DataLoader(
-        train_data, batch_size=256, shuffle=True,
+        train_data, batch_size=batch_size, shuffle=True,
         num_workers=num_workers, pin_memory=True, persistent_workers=False
     )
     val_data_loader = DataLoader(
-        validation_data, batch_size=256, shuffle=False,
+        validation_data, batch_size=batch_size, shuffle=False,
         num_workers=num_workers, pin_memory=True, persistent_workers=False
     )
     test_data_loader = DataLoader(
-        validation_data, batch_size=256, shuffle=False,
+        test_data, batch_size=batch_size, shuffle=False,
         num_workers=num_workers, pin_memory=True, persistent_workers=False
     )
 
