@@ -61,16 +61,28 @@ class EarlyStopping(Callback):
         state_dict = torch.load(self._best_buffer, weights_only=True)
         model.load_state_dict(state_dict)
 
-    def on_epoch_end(self, epoch, logs, model):
+    def on_epoch_end(
+            self,
+            epoch: int,
+            logs: dict,
+            model,
+    ) -> str | None:
         current = logs[self.monitor_stat]
 
         if self.is_better(current):
             self.best_value = current
             self.best_epoch = epoch
             self._wait = 0
-
             self.save_checkpoint(model)
-        else:
-            self._wait += 1
+            return None
 
-        return self._wait >= self.patience
+        self._wait += 1
+
+        if self._wait < self.patience:
+            return None
+
+        return (
+            f"\nEarly stopping at epoch {epoch} "
+            f"(no improvement > {self.min_delta} "
+            f"for {self.patience} epochs)"
+        )

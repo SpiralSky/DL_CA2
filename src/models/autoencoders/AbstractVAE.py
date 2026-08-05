@@ -6,6 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
+from src.models.util.FitLogger import FitLogger
 from src.training.callbacks import EarlyStopping
 
 
@@ -96,26 +97,29 @@ class AbstractVAE(nn.Module):
         return {k: v / num_batches for k, v in totals.items()}
 
     def fit(
-        self,
-        train_loader: DataLoader,
-        val_loader: DataLoader,
-        device: torch.device,
-        max_epochs: int,
-        lr: float,
-        grad_clip_norm: float,
-        recon_loss_type: str = "mse",
-        free_bits: float = 0.0,
-        *,
-        optimizer: torch.optim.Optimizer | None = None,
-        scheduler: torch.optim.lr_scheduler._LRScheduler | None = None,
-        early_stopping=None
+            self,
+            train_loader: DataLoader,
+            val_loader: DataLoader,
+            device: torch.device,
+            max_epochs: int,
+            lr: float,
+            grad_clip_norm: float,
+            recon_loss_type: str = "mse",
+            free_bits: float = 0.0,
+            *,
+            optimizer: torch.optim.Optimizer | None = None,
+            scheduler: torch.optim.lr_scheduler._LRScheduler | None = None,
+            early_stopping=None,
     ) -> list[dict]:
         if optimizer is None:
             optimizer = torch.optim.Adam(self.parameters(), lr=lr)
 
         if scheduler is None:
             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizer, mode="min", patience=5, factor=0.5
+                optimizer,
+                mode="min",
+                patience=5,
+                factor=0.5,
             )
 
         if early_stopping is None:
@@ -127,53 +131,38 @@ class AbstractVAE(nn.Module):
             "grad_clip_norm": grad_clip_norm,
         }
 
-        history = []
+        logger = FitLogger()
 
         for epoch in range(1, max_epochs + 1):
             start = time.time()
 
-            train_metrics = self.run_epoch(
-                train_loader, device, optimizer, config, train=True
-            )
-            val_metrics = self.run_epoch(
-                val_loader, device, optimizer, config, train=False
-            )
+            train_metrics = self.run_epoch(train_loader, device, optimizer, config, train=True)
+
+            val_metrics = self.run_epoch(val_loader, device, optimizer, config, train=False)
 
             scheduler.step(val_metrics["total"])
 
-            elapsed = time.time() - start
-
-            logs = {
-                "epoch": epoch,
-                "max_epochs": max_epochs,
-                "lr": optimizer.param_groups[0]["lr"],
-                "time": elapsed,
-                "loss": train_metrics["total"],
-                "recon": train_metrics["reconstruction"],
-                "kl": train_metrics["kl_divergence"],
-                "val_loss": val_metrics["total"],
-            }
-
-            history.append(logs)
-
-            print(
-                f"epoch {epoch}/{max_epochs}  "
-                f"loss={logs['loss']:.2f}  recon={logs['recon']:.2f}  kl={logs['kl']:.2f}  "
-                f"lr={logs['lr']:.2e}  time={elapsed:.1f}s  "
-                f"val_loss={logs['val_loss']:.2f}"
+            logs = logger.log(
+                epoch=epoch,
+                max_epochs=max_epochs,
+                train=train_metrics,
+                val=val_metrics,
+                extra={
+                    "lr": optimizer.param_groups[0]["lr"],
+                    "time": time.time() - start,
+                },
             )
 
-            if early_stopping.on_epoch_end(epoch, logs, self):
-                print(
-                    f"\nEarly stopping at epoch {epoch} "
-                    f"(no improvement > {early_stopping.min_delta} "
-                    f"for {early_stopping.patience} epochs)"
-                )
+            if message := early_stopping.on_epoch_end(epoch, logs, self):
+                print(message)
                 break
 
         early_stopping.load_checkpoint(self)
 
         if early_stopping.best_value is not None:
-            print(f"Restored best model weights (val_loss={early_stopping.best_value:.2f})")
+            print(
+                f"Restored best model weights "
+                f"(val_loss={early_stopping.best_value:.2f})"
+            )
 
-        return history
+        return logger.history
