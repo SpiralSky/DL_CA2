@@ -1,11 +1,13 @@
-import math
+import torch
+from collections import defaultdict
+
 import torch
 import torch.nn as nn
-from collections import defaultdict
 from matplotlib import pyplot as plt
-from matplotlib.figure import Figure
+from matplotlib.figure import Figure, SubFigure
 
 from src.models.autoencoders.AbstractVAE import AbstractVAE
+
 
 class VAE(AbstractVAE):
     def __init__(self, encoder: nn.Module, decoder: nn.Module, latent_dim: int):
@@ -73,53 +75,62 @@ class VAE(AbstractVAE):
     def plot_class_samples(
             self,
             dataloader: torch.utils.data.DataLoader,
-            n_images: int = 10,
-            n_cols: int = 5,
+            n_images: int = 2,
             figsize: tuple[int, int] | None = None,
             cmap: str = "gray",
-            show: bool = False,
-            device: torch.device = None,
-    ) -> Figure | None:
+            device: torch.device | None = None,
+            class_names: list[str] | None = None,
+            fig: Figure | SubFigure | None = None,
+    ) -> Figure | SubFigure:
         generated = self.view_class_samples(dataloader, n_images, device)
-        n_classes = len(generated)
-        n_rows_per_class = math.ceil(n_images / n_cols)
+
+        class_indices = sorted(generated.keys())
+        n_classes = len(class_indices)
 
         if figsize is None:
-            figsize = (n_cols * 2, n_classes * n_rows_per_class * 2)
+            figsize = (
+                n_classes * 1.8,
+                n_images * 2.0,
+            )
 
-        fig, axes = plt.subplots(
+        if fig is None:
+            fig = plt.figure(figsize=figsize)
+
+        axes = fig.subplots(
+            n_images,
             n_classes,
-            n_rows_per_class,
-            figsize=figsize,
             squeeze=False,
         )
 
-        for class_idx, ax_row in zip(sorted(generated.keys()), axes):
+        for col, class_idx in enumerate(class_indices):
+            title = (
+                class_names[class_idx]
+                if class_names is not None
+                else f"Class {class_idx}"
+            )
+            axes[0, col].set_title(title, fontsize=10)
+
             images = generated[class_idx]
 
-            for i in range(n_rows_per_class * n_cols):
-                ax = ax_row[i] if i < len(ax_row) else None
-                if ax is None:
+            for row in range(n_images):
+                ax = axes[row, col]
+                ax.axis("off")
+
+                if row >= len(images):
                     continue
 
-                ax.axis("off")
-                if i < n_images:
-                    img = images[i]
-                    # Handle different channel configurations
-                    if img.ndim == 3:
-                        if img.shape[0] in (1, 3):  # CHW
-                            img = img.permute(1, 2, 0)
-                        if img.shape[-1] == 1:  # Single channel
-                            img = img.squeeze(-1)
-                    img_np = img.cpu().numpy()
-                    ax.imshow(img_np, cmap=cmap if img_np.ndim == 2 else None)
-                    if i == 0:
-                        ax.set_title(f"Class {class_idx}", fontsize=10)
+                img = images[row]
 
-        plt.tight_layout()
+                if img.ndim == 3:
+                    if img.shape[0] in (1, 3):
+                        img = img.permute(1, 2, 0)
+                    if img.shape[-1] == 1:
+                        img = img.squeeze(-1)
 
-        if show:
-            plt.show()
-            return None
+                img_np = img.cpu().numpy()
+                ax.imshow(
+                    img_np,
+                    cmap=cmap if img_np.ndim == 2 else None,
+                )
 
         return fig

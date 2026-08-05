@@ -1,8 +1,12 @@
 import torch.nn as nn
 from matplotlib import pyplot as plt
+from matplotlib.figure import Figure, SubFigure
 
 
-def plot_gradient_flow(model: nn.Module) -> plt.Figure:
+def plot_gradient_flow(
+    model: nn.Module,
+    fig: Figure | SubFigure | None = None,
+) -> Figure | SubFigure:
     layer_names = []
     mean_gradients = []
     max_gradients = []
@@ -15,7 +19,11 @@ def plot_gradient_flow(model: nn.Module) -> plt.Figure:
         mean_gradients.append(parameter.grad.abs().mean().item())
         max_gradients.append(parameter.grad.abs().max().item())
 
-    fig, ax = plt.subplots(figsize=(12, 6))
+    if fig is None:
+        fig = plt.figure(figsize=(12, 6))
+
+    ax = fig.subplots()
+
     x_positions = range(len(layer_names))
 
     ax.bar(x_positions, mean_gradients, color="steelblue", label="Mean")
@@ -32,12 +40,11 @@ def plot_gradient_flow(model: nn.Module) -> plt.Figure:
                 color="red",
             )
 
-    ax.set_xticks(x_positions)
+    ax.set_xticks(list(x_positions))
     ax.set_xticklabels(layer_names, rotation=90, fontsize=6)
     ax.set_ylabel("Gradient Magnitude (log scale)")
     ax.set_title("Gradient Flow Per Layer")
     ax.set_yscale("log")
     ax.legend()
 
-    fig.tight_layout()
     return fig

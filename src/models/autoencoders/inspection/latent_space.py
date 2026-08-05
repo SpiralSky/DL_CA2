@@ -1,13 +1,13 @@
-import warnings
 from pathlib import Path
 
 import numpy as np
 import torch
 import torch.nn as nn
 from matplotlib import pyplot as plt
+from matplotlib.figure import Figure, SubFigure
 from sklearn.manifold import TSNE
 from torch.utils.data import DataLoader
-import torch.nn.functional as functional
+
 
 def analyze_latent_space(
     model: nn.Module,
@@ -18,7 +18,8 @@ def analyze_latent_space(
     random_state: int = 42,
     save_file: Path | None = None,
     class_names: list[str] | None = None,
-) -> plt.Figure:
+    fig: Figure | SubFigure | None = None,
+) -> Figure | SubFigure:
     if not hasattr(model, "state_dict"):
         raise ValueError("model must have a state_dict method")
     if not hasattr(data_loader, "__iter__"):
@@ -44,7 +45,11 @@ def analyze_latent_space(
                 _, mu, _ = model(images)
 
             all_mu.append(mu.cpu())
-            all_labels.append(labels.cpu() if isinstance(labels, torch.Tensor) else torch.tensor(labels))
+            all_labels.append(
+                labels.cpu()
+                if isinstance(labels, torch.Tensor)
+                else torch.tensor(labels)
+            )
 
     mu = torch.cat(all_mu).numpy()
     labels = torch.cat(all_labels).numpy()
@@ -52,16 +57,21 @@ def analyze_latent_space(
     if n_samples is not None and (n := len(mu)) > n_samples:
         rng = np.random.default_rng(random_state)
         idx = rng.choice(n, size=n_samples, replace=False)
-        mu, labels = mu[idx], labels[idx]
+        mu = mu[idx]
+        labels = labels[idx]
 
     embedding = TSNE(
         n_components=2,
         perplexity=perplexity,
         random_state=random_state,
-        n_jobs=-1,
     ).fit_transform(mu)
 
-    fig, ax = plt.subplots(figsize=(10, 8))
+    owns_figure = fig is None
+    if owns_figure:
+        fig = plt.figure(figsize=(10, 8))
+
+    ax = fig.subplots()
+
     scatter = ax.scatter(
         embedding[:, 0],
         embedding[:, 1],
@@ -72,21 +82,24 @@ def analyze_latent_space(
     )
 
     if class_names is not None:
-        n_classes = len(class_names)
-        handles = [plt.Line2D([0], [0], marker="o", color="w", markerfacecolor=plt.cm.tab10(i / 9), markersize=8) for i in range(n_classes)]
-        ax.legend(handles, class_names, title="class", loc="best", fontsize=8)
+        handles = [
+            plt.Line2D(
+                [0],
+                [0],
+                marker="o",
+                color="w",
+                markerfacecolor=plt.cm.tab10(i / 9),
+                markersize=8,
+            )
+            for i in range(len(class_names))
+        ]
+        ax.legend(handles, class_names, title="Class", loc="best", fontsize=8)
     else:
-        plt.colorbar(scatter, ax=ax, label="class")
+        fig.colorbar(scatter, ax=ax, label="Class")
 
     ax.set_title(f"t-SNE (n={len(mu)}, perplexity={perplexity})")
-    plt.tight_layout()
 
-    if save_file is not None:
+    if owns_figure and save_file is not None:
         fig.savefig(save_file, dpi=300, bbox_inches="tight")
-
-    try:
-        __IPYTHON__  # type: ignore[name-defined]
-    except NameError:
-        plt.show()
 
     return fig
