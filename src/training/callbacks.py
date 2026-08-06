@@ -4,13 +4,16 @@ from pathlib import Path
 
 import torch
 
-
 class Callback:
-    """Base class -- override the hook you need. Mirrors keras.callbacks.Callback's shape."""
+    """Base class -- override the hook you need."""
+
+    def __init__(self, start_epoch: int = 1):
+        self.start_epoch = start_epoch
 
     def on_epoch_end(self, epoch, logs, model):
         """Return True to request that training stop."""
         return False
+
 
 class EarlyStopping(Callback):
     """
@@ -23,22 +26,23 @@ class EarlyStopping(Callback):
         monitor: str = "val_loss",
         patience: int = 15,
         min_delta: float = 0.01,
+        start_epoch: int = 1,
     ) -> None:
-        self.monitor_stat: str = monitor
-        self.patience: int = patience
-        self.min_delta: float = min_delta
+        super().__init__(start_epoch)
 
-        self.best_value: float = float("inf")
+        self.monitor_stat = monitor
+        self.patience = patience
+        self.min_delta = min_delta
+
+        self.best_value = float("inf")
         self.best_epoch: int | None = None
-        self._wait: int = 0
+        self._wait = 0
         self._best_buffer: BytesIO | None = None
 
     def is_better(self, current: float) -> bool:
-        """Check if current metric improved over best by at least min_delta."""
         return current < (self.best_value - self.min_delta)
 
     def save_checkpoint(self, model, save_path: Path | None = None) -> None:
-        """Serialize model state dict to an in-memory buffer and optionally to file."""
         buffer = io.BytesIO()
         torch.save(model.state_dict(), buffer)
         buffer.seek(0)
@@ -48,7 +52,6 @@ class EarlyStopping(Callback):
             torch.save(model.state_dict(), save_path)
 
     def load_checkpoint(self, model, save_path: Path | None = None) -> None:
-        """Restore model weights from the in-memory buffer or file."""
         if save_path is not None and save_path.exists():
             state_dict = torch.load(save_path, weights_only=True)
             model.load_state_dict(state_dict)
@@ -62,11 +65,15 @@ class EarlyStopping(Callback):
         model.load_state_dict(state_dict)
 
     def on_epoch_end(
-            self,
-            epoch: int,
-            logs: dict,
-            model,
+        self,
+        epoch: int,
+        logs: dict,
+        model,
     ) -> str | None:
+
+        if epoch < self.start_epoch:
+            return None
+
         current = logs[self.monitor_stat]
 
         if self.is_better(current):

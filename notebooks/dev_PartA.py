@@ -117,6 +117,25 @@ _LOAD_CLEAN_IMPORTS_958e = [
 ]
 
 # %% [markdown]
+# ### ModelHistory class
+
+# %%
+# %%load_clean
+from src.models.util.ModelHistory import ModelHistory  # noqa: F401
+
+# %% [markdown]
+# ### Callbacks
+
+# %%
+# %%load_clean
+from src.training.callbacks import *  # noqa: F401
+
+_LOAD_CLEAN_IMPORTS_a022 = [
+    Callback,
+    EarlyStopping,
+]
+
+# %% [markdown]
 # ### 2.3. AbstractVAE
 # AbstractAVE is a basic pytorch module that provides methods such as:
 # - `reparameterize`: Reparameterization trick (formula)
@@ -166,15 +185,39 @@ from src.models.autoencoders.model_factory import basic_vae # noqa: F401
 
 # %%
 # %%load_clean
-from src.training.autoencoders.base_vae import train_base_vae  # noqa: F401
+from src.training.autoencoders.base_vae import *  # noqa: F401
+
+_LOAD_CLEAN_IMPORTS_5c3c = [
+    config,
+    train_and_analysis,
+    train_base_vae,
+    view_model_results,
+]
 
 # %%
-train_base_vae(PROJECT_ROOT.joinpath("data"))
+model, test_dataloader, labels, history = train_base_vae(PROJECT_ROOT.joinpath("data"))
 
 # %% [markdown]
 # ### 3.2. Analysis of Base VAE results
 
 # %%
+# %%load_clean
+from src.models.autoencoders.inspection.latent_space import analyze_latent_space  # noqa: F401
+
+# %%
+# %%load_clean
+from src.models.autoencoders.inspection.reconstructions import plot_reconstructions
+
+# %%
+# %%load_clean
+from src.models.inspection.plot_gradients import plot_gradient_heatmap  # noqa: F401
+
+# %%
+# %%load_clea
+from src.training.autoencoders.base_vae import view_model_results
+
+# %%
+_ = view_model_results(model, test_dataloader, labels, history)
 
 # %%
 # train_conditional_vae(PROJECT_ROOT.joinpath("data"))

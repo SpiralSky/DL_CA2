@@ -1,55 +1,116 @@
-from matplotlib.figure import Figure, SubFigure
+from collections import defaultdict
+
 import matplotlib.pyplot as plt
-from typing import Sequence, Any
-
-from typing import Sequence, Any
-
+import numpy as np
 from matplotlib.figure import Figure, SubFigure
 
+from src.models.util.ModelHistory import ModelHistory
 
-def plot_gradient_history(
-    history: Sequence[dict[str, Any]],
+
+def plot_gradient_summary(
+    history: ModelHistory,
     fig: Figure | SubFigure | None = None,
 ) -> Figure | SubFigure:
-    epochs = []
-    grad_norms = []
-    grad_means = []
+
+    module_gradients = defaultdict(list)
 
     for entry in history:
-        if "grad_norm" not in entry:
+        gradients = entry.get("gradients")
+        if gradients is None:
             continue
 
-        epochs.append(entry["epoch"])
-        grad_norms.append(entry["grad_norm"])
+        epoch_modules = defaultdict(list)
 
-        if "grad_mean" in entry:
-            grad_means.append(entry["grad_mean"])
+        for name, stats in gradients.items():
+            if name.endswith(".bias"):
+                continue
+
+            module = name.removesuffix(".weight")
+
+            # Aggregate all layers inside a Sequential block
+            parts = module.split(".")
+            if parts[-1].isdigit():
+                module = ".".join(parts[:-1])
+
+            epoch_modules[module].append(stats["norm"])
+
+        for module, values in epoch_modules.items():
+            epoch_value = np.mean(values)
+            module_gradients[module].append(epoch_value)
 
     if fig is None:
-        fig = plt.figure(figsize=(10, 4))
+        fig = plt.figure(figsize=(12, 6))
 
     ax = fig.subplots()
 
-    if grad_norms:
-        ax.plot(
-            epochs,
-            grad_norms,
-            label="grad_norm",
+    if not module_gradients:
+        ax.set_title("Gradient Summary")
+        ax.text(
+            0.5,
+            0.5,
+            "No gradient history available.",
+            ha="center",
+            va="center",
+            transform=ax.transAxes,
+        )
+        return fig
+
+    modules = list(module_gradients.keys())
+
+    medians = []
+    lower_errors = []
+    upper_errors = []
+
+    for module in modules:
+        values = np.asarray(module_gradients[module])
+
+        median = np.median(values)
+        q1 = np.percentile(values, 25)
+        q3 = np.percentile(values, 75)
+
+        medians.append(median)
+        lower_errors.append(median - q1)
+        upper_errors.append(q3 - median)
+
+    x = np.arange(len(modules))
+
+    bars = ax.bar(
+        x,
+        medians,
+        yerr=[lower_errors, upper_errors],
+        capsize=4,
+    )
+
+    for bar, median, upper in zip(bars, medians, upper_errors):
+        ax.annotate(
+            f"{median:.2e}",
+            xy=(
+                bar.get_x() + bar.get_width() / 2,
+                median + upper,
+            ),
+            xytext=(0, 4),
+            textcoords="offset points",
+            ha="center",
+            va="bottom",
+            fontsize=7,
         )
 
-    if grad_means:
-        ax.plot(
-            epochs,
-            grad_means,
-            label="grad_mean",
-        )
+    ax.set_xticks(x)
+    ax.set_xticklabels(
+        modules,
+        rotation=45,
+        ha="right",
+        fontsize=8,
+    )
 
-    ax.set_title("Gradient Statistics Over Training")
-    ax.set_xlabel("Epoch")
-    ax.set_ylabel("Gradient Magnitude")
+    ax.set_ylabel("Median Gradient Norm")
+    ax.set_title("Gradient Magnitude per Module")
     ax.set_yscale("log")
 
-    if grad_norms or grad_means:
-        ax.legend()
+    ax.grid(
+        axis="y",
+        linestyle="--",
+        alpha=0.3,
+    )
 
     return fig

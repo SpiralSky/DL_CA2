@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
-from src.models.util.FitLogger import FitLogger
+from src.models.util.ModelHistory import ModelHistory
 from src.training.callbacks import EarlyStopping
 
 
@@ -14,6 +14,7 @@ class VAETrainConfig(TypedDict):
     recon_loss_type: Literal["mse", "bce"]
     grad_clip_norm: float
     free_bits: float
+    kl_weight: float
 
 class AbstractVAE(nn.Module):
     def __init__(self, latent_dim: int):
@@ -42,27 +43,42 @@ class AbstractVAE(nn.Module):
         return kl_per_dim.sum() / mu.size(0)
 
     def get_loss(
-        self,
-        recon: torch.Tensor,
-        target: torch.Tensor,
-        mu: torch.Tensor,
-        logvar: torch.Tensor,
-        *,
-        recon_loss_type: Literal["mse", "bce"] = "bce",
-        free_bits: float = 0.0,
+            self,
+            recon: torch.Tensor,
+            target: torch.Tensor,
+            mu: torch.Tensor,
+            logvar: torch.Tensor,
+            *,
+            recon_loss_type: Literal["mse", "bce"] = "bce",
+            free_bits: float = 0.0,
+            kl_weight: float = 1.0,
     ) -> dict[str, torch.Tensor]:
+
         recon_loss = self.reconstruction_loss(recon, target, recon_loss_type)
         kl = self.kl_divergence(mu, logvar, free_bits)
+
         return {
-            "total": recon_loss + kl,
+            "total": recon_loss + kl_weight * kl,
             "reconstruction": recon_loss,
             "kl_divergence": kl,
         }
 
-    def run_epoch(self, loader, device, optimizer, config, train):
+    def run_epoch(
+            self,
+            loader,
+            device,
+            optimizer,
+            config,
+            train,
+    ):
         self.train() if train else self.eval()
 
-        totals = {"total": 0.0, "reconstruction": 0.0, "kl_divergence": 0.0}
+        totals = {
+            "total": 0.0,
+            "reconstruction": 0.0,
+            "kl_divergence": 0.0,
+        }
+
         num_batches = 0
 
         with torch.enable_grad() if train else torch.no_grad():
@@ -73,6 +89,7 @@ class AbstractVAE(nn.Module):
                     optimizer.zero_grad()
 
                 recon, mu, logvar = self(images)
+
                 losses = self.get_loss(
                     recon,
                     images,
@@ -80,21 +97,25 @@ class AbstractVAE(nn.Module):
                     logvar,
                     recon_loss_type=config["recon_loss_type"],
                     free_bits=config["free_bits"],
+                    kl_weight=config["kl_weight"]
                 )
 
                 if train:
                     losses["total"].backward()
-                    torch.nn.utils.clip_grad_norm_(
-                        self.parameters(), max_norm=config["grad_clip_norm"]
-                    )
+
+                    torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=config["grad_clip_norm"])
+
                     optimizer.step()
 
-                for k in totals:
-                    totals[k] += losses[k].item()
+                for key in totals:
+                    totals[key] += losses[key].item()
 
                 num_batches += 1
 
-        return {k: v / num_batches for k, v in totals.items()}
+        return {
+            key: value / num_batches
+            for key, value in totals.items()
+        }
 
     def fit(
             self,
@@ -106,66 +127,82 @@ class AbstractVAE(nn.Module):
             grad_clip_norm: float,
             recon_loss_type: str = "mse",
             free_bits: float = 0.0,
+            kl_warmup_epochs: int = 0,
             *,
             optimizer: torch.optim.Optimizer | None = None,
             scheduler: torch.optim.lr_scheduler._LRScheduler | None = None,
             early_stopping=None,
-    ) -> list[dict]:
+    ) -> ModelHistory:
+
         if optimizer is None:
             optimizer = torch.optim.Adam(self.parameters(), lr=lr)
 
         if scheduler is None:
-            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizer,
-                mode="min",
-                patience=5,
-                factor=0.5,
-            )
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", patience=5, factor=0.5)
 
         if early_stopping is None:
-            early_stopping = EarlyStopping(monitor="val_loss")
+            early_stopping = EarlyStopping(
+                monitor="val_loss",
+                start_epoch=30
+            )
 
-        config: VAETrainConfig = {
-            "recon_loss_type": recon_loss_type,  # type: ignore
-            "free_bits": free_bits,
-            "grad_clip_norm": grad_clip_norm,
-        }
-
-        history: list[dict[str, Any]] = []
-
-        logger = FitLogger(
-            exclude={
-                "grad_mean",
-                "grad_std",
-            }
-        )
+        history = ModelHistory()
 
         for epoch in range(1, max_epochs + 1):
             start = time.time()
 
+            kl_weight = self.get_kl_weight(
+                epoch,
+                kl_warmup_epochs,
+            )
+
+            config: VAETrainConfig = {
+                "recon_loss_type": recon_loss_type,  # type: ignore
+                "free_bits": free_bits,
+                "grad_clip_norm": grad_clip_norm,
+                "kl_weight": kl_weight,
+            }
+
             train_metrics = self.run_epoch(train_loader, device, optimizer, config, train=True)
-
             val_metrics = self.run_epoch(val_loader, device, optimizer, config, train=False)
-
             grad_metrics = self.get_gradient_stats()
 
             scheduler.step(val_metrics["total"])
 
-            logs = logger.log(
+            logs = history.update(
                 epoch=epoch,
                 max_epochs=max_epochs,
-                train=train_metrics,
-                val=val_metrics,
-                extra={
-                    "gradients": self.get_gradient_stats(),
+                train_metrics=train_metrics,
+                val_metrics=val_metrics,
+                extra_metrics={
+                    "gradients": grad_metrics,
+                    "kl_weight": kl_weight,
                     "lr": optimizer.param_groups[0]["lr"],
                     "time": time.time() - start,
-                }
+                },
             )
 
-            history.append(logs)
+            print(
+                history.format_epoch(
+                    metrics=[
+                        "train_loss",
+                        "train_reconstruction",
+                        "train_kl_divergence",
+                        "val_loss",
+                        "val_reconstruction",
+                        "val_kl_divergence",
+                        "kl_weight",
+                        "lr",
+                        "time",
+                    ]
+                )
+            )
 
-            if message := early_stopping.on_epoch_end(epoch, logs, self):
+            if message := early_stopping.on_epoch_end(
+                    epoch,
+                    logs,
+                    self,
+            ):
                 print(message)
                 break
 
@@ -187,3 +224,13 @@ class AbstractVAE(nn.Module):
             }
 
         return gradients
+
+    @staticmethod
+    def get_kl_weight(
+            epoch: int,
+            kl_warmup_epochs: int,
+    ) -> float:
+        if kl_warmup_epochs <= 0:
+            return 1.0
+
+        return min(epoch / kl_warmup_epochs, 1.0)
