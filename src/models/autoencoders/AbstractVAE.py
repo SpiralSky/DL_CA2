@@ -1,6 +1,7 @@
 import time
 from typing import Literal, TypedDict, Any
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -15,6 +16,7 @@ class VAETrainConfig(TypedDict):
     grad_clip_norm: float
     free_bits: float
     kl_weight: float
+
 
 class AbstractVAE(nn.Module):
     def __init__(self, latent_dim: int):
@@ -207,6 +209,20 @@ class AbstractVAE(nn.Module):
                 break
 
         return history
+
+    def _prepare_image(self, image: torch.Tensor) -> np.ndarray:
+        """
+        Convert a generated tensor image into matplotlib format.
+        """
+
+        if image.ndim == 3:
+            if image.shape[0] in (1, 3):
+                image = image.permute(1, 2, 0)
+
+            if image.shape[-1] == 1:
+                image = image.squeeze(-1)
+
+        return image.detach().cpu().numpy()
 
     def get_gradient_stats(self) -> dict[str, dict[str, float]]:
         gradients = {}

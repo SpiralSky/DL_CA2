@@ -8,7 +8,7 @@ class BasicDecoder(nn.Module):
         self.init_spatial = 4
 
         # Image dimensions (W/H):
-        # 4 -> 8 -> 16 -> 32 -> 32
+        # 4 -> 8 -> 16 -> 32
         self.decoder = nn.Sequential(
             nn.Linear(latent_dim, 4096),
             nn.Unflatten(dim=1, unflattened_size=(256, self.init_spatial, self.init_spatial)),

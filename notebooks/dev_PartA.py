@@ -206,15 +206,15 @@ from src.models.autoencoders.inspection.latent_space import analyze_latent_space
 
 # %%
 # %%load_clean
-from src.models.autoencoders.inspection.reconstructions import plot_reconstructions
+from src.models.autoencoders.inspection.reconstructions import plot_reconstructions  # noqa: F401
 
 # %%
 # %%load_clean
 from src.models.inspection.plot_gradients import plot_gradient_heatmap  # noqa: F401
 
 # %%
-# %%load_clea
-from src.training.autoencoders.base_vae import view_model_results
+# %%load_clean
+from src.training.autoencoders.base_vae import view_model_results  # noqa: F401
 
 # %%
 _ = view_model_results(model, test_dataloader, labels, history)
