@@ -9,6 +9,8 @@ from matplotlib.figure import Figure
 from sklearn.manifold import TSNE
 from torch.utils.data import DataLoader
 
+from models.autoencoders.AbstractVAE import AbstractVAE
+
 
 def analyze_latent_space(
     model: nn.Module,
@@ -17,10 +19,20 @@ def analyze_latent_space(
     n_samples: int | None = 5000,
     perplexity: float = 30.0,
     random_state: int = 42,
-    save_file: Path | None = None,
     class_names: list[str] | None = None,
     ax: Axes | None = None,
-) -> Figure:
+) -> Axes:
+    """
+    Uses TSNE to display n_samples of points in latent space on a 2d surface.
+    :param model: Model to generate samples from.
+    :param data_loader: DataLoader where samples will be picked from.
+    :param n_samples: Number of samples to be picked. Defaults to 5000. If None is specified, uses all samples from DataLoader.
+    :param perplexity: TSNE Perplexity.
+    :param random_state: Random State to be used in TSNE.
+    :param class_names: List of class names to act as legend in plot.
+    :param ax: axes to plot on.
+    :return: Plot axes.
+    """
 
     device = next(model.parameters()).device
     model.eval()
@@ -80,7 +92,7 @@ def analyze_latent_space(
                 [0],
                 marker="o",
                 linestyle="",
-                markerfacecolor=plt.cm.tab10(i / max(len(class_names) - 1, 1)),
+                markerfacecolor=plt.cm.tab10(i / max(len(class_names) - 1, 1)), # type: ignore[attr-defined]
                 color="w",
                 markersize=8,
             )
@@ -98,25 +110,20 @@ def analyze_latent_space(
     ax.set_xlabel("Component 1")
     ax.set_ylabel("Component 2")
 
-    if save_file is not None:
-        fig.savefig(
-            save_file,
-            dpi=300,
-            bbox_inches="tight",
-        )
-
-    return fig
+    return ax
 
 def plot_latent_utilization(
-    model: nn.Module,
+    model: AbstractVAE,
     dataloader: DataLoader,
     *,
     ax: Axes | None = None,
-) -> Figure:
+) -> Axes:
     """
-    Plot average KL contribution per latent dimension.
-
-    The device is inferred automatically from the model parameters.
+    Plots latent space utilization of each dimension in a line graph.
+    :param model: Model for latent space analysis.
+    :param dataloader: DataLoader to load images from.
+    :param ax: Axes to plot on.
+    :return: Returns the provided axes.
     """
 
     model.eval()
@@ -132,12 +139,7 @@ def plot_latent_utilization(
 
             mu, logvar = model.encoder(images)
 
-            kl = -0.5 * (
-                1
-                + logvar
-                - mu.pow(2)
-                - logvar.exp()
-            )
+            kl = model.kl_divergence(mu, logvar)
 
             kl = kl.sum(dim=0)
 
@@ -148,8 +150,6 @@ def plot_latent_utilization(
 
     if ax is None:
         fig, ax = plt.subplots(figsize=(8, 3))
-    else:
-        fig = ax.figure
 
     dimensions = np.arange(avg_kl.size)
 
@@ -171,4 +171,4 @@ def plot_latent_utilization(
 
     ax.grid(alpha=0.3)
 
-    return fig
+    return ax
