@@ -4,16 +4,17 @@ from pathlib import Path
 import torch
 import torchvision
 import torchvision.transforms as transforms
+from torch import nn
 from torch.utils.data import DataLoader
 
 
-def get_dataset(data_path: Path, train: bool = True, transform=None) -> torchvision.datasets.CIFAR10:
+def get_dataset(data_path: Path, train: bool = True, transform: nn.Module | None = None) -> torchvision.datasets.CIFAR10:
     """
     Loads the CIFAR-10 dataset.
-    NOTE: transforms.ToTensor() transforms provided
+    NOTE: transforms.ToTensor() transforms provided by default
     :param data_path: Path object to the data folder containing the dataset.
     :param train: If true, loads the training set, else loads the test set.
-    :param transform: A function that takes in a PIL image and returns a transformed verison.
+    :param transform: Defaults with a standard ToTensor() transform. Replace with custom transform for data augmentation. (Must have ToTensor() as first layer for normalization.)
     :return:
     """
     if transform is None:
