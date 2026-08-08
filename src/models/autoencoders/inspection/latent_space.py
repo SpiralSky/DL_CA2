@@ -1,19 +1,16 @@
-from pathlib import Path
-
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
 from matplotlib.axes import Axes
-from matplotlib.figure import Figure
 from sklearn.manifold import TSNE
 from torch.utils.data import DataLoader
 
-from models.autoencoders.AbstractVAE import AbstractVAE
+from src.models.autoencoders.AbstractVAE import AbstractVAE
 
 
 def analyze_latent_space(
-    model: nn.Module,
+    model: AbstractVAE,
     data_loader: DataLoader,
     *,
     n_samples: int | None = 5000,
@@ -112,14 +109,14 @@ def analyze_latent_space(
 
     return ax
 
-def plot_latent_utilization(
+def plot_kl_per_dim(
     model: AbstractVAE,
     dataloader: DataLoader,
     *,
     ax: Axes | None = None,
 ) -> Axes:
     """
-    Plots latent space utilization of each dimension in a line graph.
+    Plots latent space utilisation of each dimension in a line graph.
     :param model: Model for latent space analysis.
     :param dataloader: DataLoader to load images from.
     :param ax: Axes to plot on.
@@ -139,7 +136,8 @@ def plot_latent_utilization(
 
             mu, logvar = model.encoder(images)
 
-            kl = model.kl_divergence(mu, logvar)
+            # Gets kl per dim. As kl_divergence() returns a single summed value, manual calculations are needed.
+            kl = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp())
 
             kl = kl.sum(dim=0)
 

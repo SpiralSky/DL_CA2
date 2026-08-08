@@ -1,12 +1,6 @@
-import torch
-from matplotlib import pyplot as plt
-
-
-from matplotlib.figure import Figure, SubFigure
-
-import torch
+import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.figure import Figure
+import torch
 
 
 @torch.no_grad()
@@ -16,8 +10,11 @@ def plot_reconstructions(
     *,
     device=None,
     num_images: int = 8,
-    axes=None,
-) -> Figure:
+    axes: np.ndarray | None = None,
+) -> np.ndarray:
+    """
+    Plots original images and their reconstructions.
+    """
 
     device = device or next(model.parameters()).device
     model.eval()
@@ -36,13 +33,11 @@ def plot_reconstructions(
     )
 
     if axes is None:
-        fig, axes = plt.subplots(
+        _, axes = plt.subplots(
             2,
             num_images,
             figsize=(num_images * 1.5, 3.5),
         )
-    else:
-        fig = axes[0, 0].figure
 
     for i in range(num_images):
         axes[0, i].imshow(images[i])
@@ -54,4 +49,4 @@ def plot_reconstructions(
     axes[0, 0].set_ylabel("Original")
     axes[1, 0].set_ylabel("Reconstructed")
 
-    return fig
+    return axes

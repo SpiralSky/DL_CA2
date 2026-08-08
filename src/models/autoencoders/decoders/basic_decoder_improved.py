@@ -3,6 +3,13 @@ from torch import nn
 from src.models.autoencoders.decoders.basic_decoder import BasicDecoder
 
 class ImprovedDecoder(BasicDecoder):
+    """
+    Improved Decoder with additional convolutional capacity.
+
+    Extends the basic decoder by inserting two extra conv blocks
+    into the upsampling pathway. This gives the model more parameters
+    to reconstruct fine spatial details and texture from the latent code.
+    """
     def __init__(self, latent_dim: int = 256):
         super().__init__(latent_dim=latent_dim)
 

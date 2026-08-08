@@ -1,4 +1,5 @@
 import hashlib
+import re
 
 import ast_comments as ast_c
 from IPython import get_ipython
@@ -14,6 +15,41 @@ from dependencies.dependency_resolver import (
 )
 
 MAX_BLANK_LINES = 2
+
+# Pattern used to scan previously-executed cell inputs (IPython's `In` list)
+# for a prior definition/import of a given name. This lets %%load_clean
+# recognize dependencies that were already brought in explicitly by an
+# earlier cell (same module or a different one), instead of silently
+# re-pulling them itself.
+_DEF_PATTERN_TEMPLATE = (
+    r"(^\s*(class|def)\s+{name}\b)"
+    r"|(\bimport\s+[\w.]*\b{name}\b)"
+    r"|(\bfrom\s+[\w.]+\s+import\s+[^#\n]*\b{name}\b)"
+    r"|(\bas\s+{name}\b)"
+)
+
+
+def _defined_in_notebook_history(name, ip):
+    """True if a previously-executed cell in this session defined or
+    imported `name`. Only sees cells that have actually been run, in
+    the order they were run (top-to-bottom execution assumed).
+    """
+    pattern = re.compile(_DEF_PATTERN_TEMPLATE.format(name=re.escape(name)), re.MULTILINE)
+    for cell_src in ip.user_ns.get("In", []):
+        if cell_src and pattern.search(cell_src):
+            return True
+    return False
+
+
+def _dependency_already_available(name, ip):
+    """Notebook execution history first (gives us provenance / lets us
+    tell the user which cell already provided it), then fall back to
+    checking the live namespace (covers names loaded some other way,
+    e.g. manually assigned, or from a different module entirely).
+    """
+    if _defined_in_notebook_history(name, ip):
+        return True
+    return name in ip.user_ns
 
 
 class _SourceSlicer:
@@ -167,7 +203,14 @@ class CustomMagics(Magics):
         Dependency checking:
         - Uses scope-aware static analysis (like pyflakes)
         - External package refs: warns if missing
-        - Internal module refs: ERROR if missing
+        - Internal module refs: NOT auto-pulled in. If a target depends on
+          another name from the same (or a different) module, that name
+          must either be explicitly imported/loaded already, or you'll get
+          an [ERROR] telling you to add it to the import line yourself.
+          "Already loaded" is checked two ways: first against this
+          notebook's execution history (previous cells actually run in
+          this session), then against the live namespace (covers names
+          brought in some other way).
         """
         import_line = line.strip()
         if not import_line:
@@ -191,20 +234,42 @@ class CustomMagics(Magics):
             print(f"[ERROR] Could not read {filepath}: {e}")
             return
 
-        # Resolve dependencies
+        ip = get_ipython()
+
+        # Resolve dependencies (used for reference-analysis only now, not
+        # for deciding what gets executed -- no same-module auto-pull).
         resolver = DependencyResolver(source, target_names)
         result = resolver.resolve()
 
-        # Check dependencies
+        # Internal refs the target needs that the user didn't explicitly
+        # request: these used to be auto-included. Now they're only OK if
+        # already available (history or namespace); otherwise it's an error,
+        # since running `source` as-is would NameError on exec.
+        still_missing = {
+            ref for ref in result.internal_refs
+            if ref not in target_names and not _dependency_already_available(ref, ip)
+        }
+        for ref in sorted(still_missing):
+            print(
+                f"[ERROR] '{ref}' (needed by {module_path}) is not imported and not "
+                f"already loaded in this notebook. Add it explicitly, e.g.:\n"
+                f"        from {module_path} import {', '.join(sorted(set(target_names or []) | {ref}))}"
+            )
+
+        # External package refs still get the normal warning treatment.
         warnings = check_dependencies(
             result.external_refs,
-            result.internal_refs,
-            get_ipython().user_ns,
+            set(),  # internal refs are handled above; don't double-report them
+            ip.user_ns,
             module_path,
             result.module_imports,
         )
         for w in warnings:
             print(w)
+
+        if still_missing:
+            print(f"[ERROR] Aborting execution of {module_path}: unresolved dependencies above.")
+            return
 
         # Compile and execute
         try:
@@ -213,7 +278,7 @@ class CustomMagics(Magics):
             print(f"[ERROR] Syntax error in target file {filepath}: {e}")
             return
 
-        exec(code, get_ipython().user_ns)
+        exec(code, ip.user_ns)
 
         # Normalize import line (import x.y.z -> from x.y.z import *)
         normalized = normalize_import_line(import_line)
@@ -224,14 +289,21 @@ class CustomMagics(Magics):
         # Wildcard = no explicit targets OR explicit "*" target
         is_wildcard = not target_names or target_names == {"*"}
 
+        # For a wildcard, the *actual* names it exposes come from
+        # result.needed (everything the resolver found at module top level
+        # for this empty/"*" target) -- never from target_names itself,
+        # since target_names for a wildcard is either empty or the literal
+        # string "*", neither of which is a real name to list.
+        wildcard_names = sorted(result.needed) if is_wildcard else []
+
         synthetic_list = ""
-        if is_wildcard and result.needed:
+        if wildcard_names:
             cell_hash = hashlib.sha256(normalized.encode()).hexdigest()[:4]
             var_name = f"_LOAD_CLEAN_IMPORTS_{cell_hash}"
 
             lines = [f"{var_name} = ["]
-            for name in sorted(result.needed):
-                lines.append(f"    {name},")
+            lines.extend(f"    {name}," for name in wildcard_names[:-1])
+            lines.append(f"    {wildcard_names[-1]}")
             lines.append("]")
             synthetic_list = "\n".join(lines)
 
@@ -241,7 +313,7 @@ class CustomMagics(Magics):
         else:
             output = f"%%load_clean\n{normalized}"
 
-        get_ipython().set_next_input(output, replace=True)
+        ip.set_next_input(output, replace=True)
 
     @cell_magic
     def load_empty(self, line, cell=""):
@@ -258,6 +330,12 @@ class CustomMagics(Magics):
         body with fresh cleaned code (imports stripped, only definitions
         kept), while keeping this header + import line intact so the cell
         keeps working next time you run it.
+
+        Note: like %%load_clean, this only slices the explicitly requested
+        target_names -- it does not auto-pull other names the target
+        depends on from the same module. If the sliced body references a
+        name that isn't defined/imported elsewhere, it will NameError when
+        executed; add that name to the import line explicitly.
         """
         import_line = line.strip()
         if not import_line:

@@ -1,7 +1,6 @@
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
-from matplotlib.figure import Figure, SubFigure
 import torch
 from torch.utils.data import DataLoader
 
@@ -9,8 +8,6 @@ from src.models.autoencoders.AbstractVAE import AbstractVAE
 
 
 def prepare_image(image: torch.Tensor) -> np.ndarray:
-    """Convert a tensor image into a matplotlib-compatible numpy array."""
-
     if image.ndim == 3:
         if image.shape[0] in (1, 3):
             image = image.permute(1, 2, 0)
@@ -28,19 +25,15 @@ def plot_class_samples(
     n_images: int = 2,
     cmap: str = "gray",
     class_names: list[str] | None = None,
-    axes=None,
-) -> Figure:
-    """
-    Plot reconstructed samples grouped by class.
-
-    Samples are collected from the dataloader and grouped using labels.
-    """
+    axes: np.ndarray | None = None,
+) -> np.ndarray:
 
     model.eval()
 
     device = next(model.parameters()).device
 
     samples: dict[int, list[torch.Tensor]] = {}
+
     with torch.no_grad():
         for images, labels, *_ in dataloader:
             images = images.to(device)
@@ -63,23 +56,34 @@ def plot_class_samples(
     n_classes = len(class_indices)
 
     if axes is None:
-        fig, axes = plt.subplots(n_images, n_classes, figsize=(n_classes * 1.8, n_images * 2.0), squeeze=False)
-    else:
-        fig = axes[0, 0].figure
+        _, axes = plt.subplots(
+            n_images,
+            n_classes,
+            figsize=(n_classes * 1.8, n_images * 2.0),
+            squeeze=False,
+        )
 
     for column, class_idx in enumerate(class_indices):
-        title = class_names[class_idx] if class_names else f"Class {class_idx}"
+        title = (
+            class_names[class_idx]
+            if class_names
+            else f"Class {class_idx}"
+        )
+
         axes[0, column].set_title(title, fontsize=10)
 
         for row, image in enumerate(samples[class_idx]):
             axis = axes[row, column]
             axis.axis("off")
-            axis.imshow(prepare_image(image), cmap=cmap)
+            axis.imshow(
+                prepare_image(image),
+                cmap=cmap,
+            )
 
         for row in range(len(samples[class_idx]), n_images):
             axes[row, column].axis("off")
 
-    return fig
+    return axes
 
 
 def plot_latent_utilization(
@@ -87,12 +91,7 @@ def plot_latent_utilization(
     dataloader: DataLoader,
     *,
     ax: Axes | None = None,
-) -> Figure | SubFigure:
-    """
-    Plot average KL contribution per latent dimension.
-
-    The model device is inferred automatically.
-    """
+) -> Axes:
 
     model.eval()
 
@@ -119,9 +118,7 @@ def plot_latent_utilization(
     avg_kl = (kl_total / sample_count).cpu().numpy()
 
     if ax is None:
-        fig, ax = plt.subplots(figsize=(8, 3))
-    else:
-        fig = ax.figure
+        _, ax = plt.subplots(figsize=(8, 3))
 
     dimensions = np.arange(avg_kl.size)
 
@@ -133,4 +130,4 @@ def plot_latent_utilization(
     ax.set_ylabel("Average KL")
     ax.grid(alpha=0.3)
 
-    return fig
+    return ax

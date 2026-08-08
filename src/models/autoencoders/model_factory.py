@@ -8,7 +8,12 @@ from src.models.autoencoders.encoders.basic_encoder_improved import ImprovedEnco
 from src.models.autoencoders.encoders.conditional_encoder import ConditionalEncoder
 
 
-def basic_vae(latent_dim=128):
+def basic_vae(latent_dim=128) -> VAE:
+    """
+    Creates a basic VAE model
+    :param latent_dim: Size of the latent dimension.
+    :return:
+    """
     encoder = BasicEncoder(latent_dim=latent_dim)
     decoder = BasicDecoder(latent_dim=latent_dim)
     return VAE(encoder=encoder, decoder=decoder, latent_dim=latent_dim)

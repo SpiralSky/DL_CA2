@@ -6,10 +6,13 @@ Usage: build("notebooks/dev_CA1.py") -> build/CA1.ipynb
 
 Features:
 - Detects imports from # <$IMPORTS> marker cells
-- Resolves module dependencies for %%load_clean cells
+- Slices %%load_clean cells down to exactly the requested target names
+  (no automatic same-module transitive dependency pulling -- dependencies
+  must be declared explicitly on the import line)
 - Parses synthetic _LOAD_CLEAN_IMPORTS_* lists for wildcard target names
 - Merges all needed imports into the import cell (deduplicated + grouped)
-- Warns about missing internal module dependencies
+- Errors (fails the build) on missing internal module dependencies;
+  warns on missing external package dependencies
 """
 import logging
 import re
@@ -25,8 +28,8 @@ from dependencies.dependency_resolver import (
     parse_import_line,
 )
 
-# Set up logging
-logging.basicConfig(level=logging.INFO, format="%(message)s")
+# Logging is reserved for problems only (warnings/errors) -- no [INFO] noise.
+logging.basicConfig(level=logging.WARNING, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 LOAD_CLEAN_RE = re.compile(r"^\s*#?\s*%%load_clean\b")
@@ -35,6 +38,10 @@ IMPORT_RE = re.compile(r"^\s*(import|from)\s")
 IMPORTS_MARKER_RE = re.compile(r"^\s*#\s*<\$IMPORTS>\s*$")
 SYNTHETIC_LIST_RE = re.compile(r"^\s*_LOAD_CLEAN_IMPORTS_\w+\s*=\s*\[")
 SYNTHETIC_LIST_ITEM_RE = re.compile(r"^\s*(\w+),?\s*$")
+
+
+class BuildError(Exception):
+    """Raised when a build cannot complete due to unresolved dependencies."""
 
 
 def is_load_ext_cell(source: str) -> bool:
@@ -218,26 +225,40 @@ def deduplicate_imports(import_lines: Set[str]) -> List[str]:
 
 
 # ---------------------------------------------------------------------------
-# %%load_clean expansion with dependency resolution
+# %%load_clean expansion (explicit targets only -- no auto dependency pull)
 # ---------------------------------------------------------------------------
 
 def expand_load_clean_cell(
     source: str,
     available_imports: Dict[str, str],
-    module_imports_cache: Dict[str, str],
+    module_imports_cache: Dict[str, Tuple[object, str]],
     collected_imports: Set[str],
-) -> Tuple[str, List[str]]:
+    defined_names: Set[str],
+) -> Tuple[str, List[str], List[str]]:
     """
-    Expand a %%load_clean cell into self-contained source.
-    Collects needed imports into collected_imports set (for merging into import cell later).
+    Expand a %%load_clean cell into self-contained source, using ONLY the
+    explicitly requested target names -- no same-module transitive
+    dependency pulling. Any internal reference the target needs that isn't
+    already available (explicit import cell, or an earlier %%load_clean's
+    defined_names) is reported as an error and the cell is left un-sliced
+    (falls back to strip_load_clean_cell) so the build can report all
+    problems in one pass rather than stopping at the first one.
+
+    Args:
+        defined_names: names already made available by the import cell
+            and by %%load_clean cells expanded earlier in this same build
+            pass. Mutated in place: on success, the newly sliced names are
+            added so later cells can see them too.
 
     Returns:
-        (expanded_source, warnings)
+        (expanded_source, warnings, errors)
     """
     warnings: List[str] = []
+    errors: List[str] = []
+
     lines = source.splitlines()
     if not lines or not LOAD_CLEAN_RE.match(lines[0]):
-        return source, warnings
+        return source, warnings, errors
 
     # Extract import line
     import_line = ""
@@ -251,70 +272,98 @@ def expand_load_clean_cell(
         break
 
     if not import_line:
-        return strip_load_clean_cell(source), warnings
+        return strip_load_clean_cell(source), warnings, errors
 
     module_path, target_names = parse_import_line(import_line)
     if module_path is None:
-        return strip_load_clean_cell(source), warnings
+        return strip_load_clean_cell(source), warnings, errors
 
     # Check for synthetic list (only present for wildcard imports)
     if has_synthetic_list(source):
         synthetic_targets = parse_synthetic_list(source)
         if synthetic_targets:
             target_names = synthetic_targets
-            logger.info(f"  [INFO] Using synthetic list targets: {', '.join(sorted(synthetic_targets))}")
 
-    # Check cache
+    # A literal "*" should never reach slicing -- it means the cell has a
+    # wildcard import but no (or a stale) synthetic list to expand it into
+    # real names. Re-running the %%load_clean cell in the notebook first
+    # regenerates the synthetic list; here we just fail loudly instead of
+    # silently slicing a bogus "*" definition into the output.
+    if target_names == {"*"}:
+        errors.append(
+            f"  [ERROR] {module_path}: wildcard import has no synthetic "
+            f"_LOAD_CLEAN_IMPORTS_* list to expand -- re-run the %%load_clean "
+            f"cell in the notebook first, then re-sync/build."
+        )
+        return strip_load_clean_cell(source), warnings, errors
+
+    # Resolve (cached by module+targets) but always re-slice against the
+    # *current* target_names only -- resolution result is reused just to
+    # avoid re-reading/re-parsing the source file and to get refs/imports.
     cache_key = f"{module_path}:{sorted(target_names)}"
     if cache_key in module_imports_cache:
-        body = module_imports_cache[cache_key]
+        result, module_source = module_imports_cache[cache_key]
     else:
         filepath = resolve_module_path(module_path)
         if filepath is None:
-            warnings.append(f"  [WARN] Module not found: {module_path}")
-            return strip_load_clean_cell(source), warnings
+            errors.append(f"  [ERROR] Module not found: {module_path}")
+            return strip_load_clean_cell(source), warnings, errors
 
         try:
             with open(filepath, "r", encoding="utf-8") as f:
                 module_source = f.read()
         except OSError as e:
-            warnings.append(f"  [WARN] Could not read {filepath}: {e}")
-            return strip_load_clean_cell(source), warnings
+            errors.append(f"  [ERROR] Could not read {filepath}: {e}")
+            return strip_load_clean_cell(source), warnings, errors
 
         resolver = DependencyResolver(module_source, target_names)
         result = resolver.resolve()
-        body = resolver.slice_source(result.needed)
-        module_imports_cache[cache_key] = body
+        module_imports_cache[cache_key] = (result, module_source)
 
-        # Check for missing internal dependencies
-        if result.internal_refs:
-            missing = result.internal_refs - set(available_imports.keys())
-            for ref in sorted(missing):
-                warnings.append(
-                    f"  [WARN] '{ref}' (needed by {module_path}) is an internal module "
-                    f"reference not found in import cell — ensure it's loaded via another %%load_clean"
-                )
+    # Slice out exactly what was requested -- nothing more.
+    resolver = DependencyResolver(module_source, target_names)
+    body = resolver.slice_source(target_names)
 
-    # Collect imports needed by this cell
-    filepath = resolve_module_path(module_path)
-    if filepath:
-        try:
-            with open(filepath, "r", encoding="utf-8") as f:
-                module_source = f.read()
-            resolver = DependencyResolver(module_source, target_names)
-            result = resolver.resolve()
+    # Anything the target needs internally that isn't explicitly requested
+    # here, and isn't already available from an earlier cell/import, is a
+    # hard error: the sliced body will NameError at runtime otherwise.
+    still_missing = result.internal_refs - target_names - defined_names
+    for ref in sorted(still_missing):
+        errors.append(
+            f"  [ERROR] '{ref}' (needed by {module_path}) is not in the import line "
+            f"and not already defined by an earlier cell or the import cell -- "
+            f"add it explicitly, e.g.:\n"
+            f"          from {module_path} import {', '.join(sorted(target_names | still_missing))}"
+        )
 
-            for imp in result.module_imports:
-                if imp.is_external:
-                    collected_imports.add(imp.import_line)
+    if errors:
+        # Don't mark these names as defined / don't collect their imports --
+        # the cell is broken until the user fixes the import line.
+        return strip_load_clean_cell(source), warnings, errors
 
-            for ref in result.external_refs:
-                if ref in available_imports:
-                    collected_imports.add(available_imports[ref])
-        except Exception:
-            pass
+    defined_names.update(target_names)
 
-    return body, warnings
+    # Collect imports needed by this cell (external packages the sliced
+    # body itself imports, plus any external refs satisfied by the
+    # notebook's own import cell).
+    for imp in result.module_imports:
+        if imp.is_external:
+            collected_imports.add(imp.import_line)
+
+    missing_external = set()
+    for ref in result.external_refs:
+        if ref in available_imports:
+            collected_imports.add(available_imports[ref])
+        else:
+            missing_external.add(ref)
+
+    for ref in sorted(missing_external):
+        warnings.append(
+            f"  [WARN] '{ref}' (external, needed by {module_path}) not found in the "
+            f"import cell -- make sure it's imported/installed."
+        )
+
+    return body, warnings, errors
 
 
 # ---------------------------------------------------------------------------
@@ -322,7 +371,6 @@ def expand_load_clean_cell(
 # ---------------------------------------------------------------------------
 
 def build(src_path: str, out_dir: str = "build") -> Path:
-    logger.info(f"Building {src_path}...")
     notebook = jupytext.read(src_path, fmt="py:percent")
 
     # First pass: collect imports from import cell (using original notebook)
@@ -330,37 +378,49 @@ def build(src_path: str, out_dir: str = "build") -> Path:
     for cell in notebook.cells:
         if is_imports_cell(cell.source):
             imports_source = extract_imports_cell(cell.source)
-            logger.info(f"  [INFO] Import cell found in original notebook")
             break
 
     available_imports = parse_imports(imports_source)
-    if available_imports:
-        logger.info(f"  [INFO] Available imports: {', '.join(sorted(available_imports.keys()))}")
 
-    # Cache for module bodies
-    module_cache: Dict[str, str] = {}
+    # Cache for module resolution results (result, module_source), keyed by
+    # module_path+target_names so we don't re-read/re-parse repeatedly.
+    module_cache: Dict[str, Tuple[object, str]] = {}
 
     # Collect all imports needed by expanded cells
     all_collected_imports: Set[str] = set()
 
+    # Names already available at the point we're expanding a given cell:
+    # seeded with whatever the import cell explicitly provides, then grown
+    # as each %%load_clean cell is successfully expanded, in cell order.
+    defined_names: Set[str] = set(available_imports.keys())
+
+    build_errors: List[str] = []
+
     # Second pass: expand cells and track which to keep
     kept_cells = []
-    for i, cell in enumerate(notebook.cells):
+    for cell in notebook.cells:
         # Skip load_ext cells
         if is_load_ext_cell(cell.source):
-            logger.info(f"  [INFO] Skipping %load_ext cell at index {i}")
             continue
 
         # Expand load_clean cells
-        if LOAD_CLEAN_RE.match(cell.source.splitlines()[0] if cell.source else ""):
-            logger.info(f"  [INFO] Expanding %%load_clean cell at index {i}")
-            cell.source, warnings = expand_load_clean_cell(
-                cell.source, available_imports, module_cache, all_collected_imports
+        if cell.source and LOAD_CLEAN_RE.match(cell.source.splitlines()[0]):
+            cell.source, warnings, errors = expand_load_clean_cell(
+                cell.source, available_imports, module_cache, all_collected_imports, defined_names
             )
             for w in warnings:
                 logger.warning(w)
+            for e in errors:
+                logger.error(e)
+            build_errors.extend(errors)
 
         kept_cells.append(cell)
+
+    if build_errors:
+        raise BuildError(
+            f"Build failed for {src_path}: {len(build_errors)} unresolved dependency "
+            f"error(s). See logged [ERROR] messages above."
+        )
 
     # Find imports cell in kept_cells (indices shifted after skipping)
     imports_idx = find_imports_cell_index(kept_cells)
@@ -379,12 +439,10 @@ def build(src_path: str, out_dir: str = "build") -> Path:
         if imports_idx is not None:
             # Update existing import cell
             kept_cells[imports_idx].source = import_cell_content
-            logger.info(f"  [INFO] Updated import cell at index {imports_idx} with {len(deduped)} imports")
         else:
             # Create new import cell at the beginning
             new_cell = nbformat.v4.new_code_cell(import_cell_content)
             kept_cells.insert(0, new_cell)
-            logger.info(f"  [INFO] Created import cell with {len(deduped)} imports")
 
     notebook.cells = kept_cells
 
@@ -393,7 +451,6 @@ def build(src_path: str, out_dir: str = "build") -> Path:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     nbformat.write(notebook, out_path)
 
-    logger.info(f"Built {out_path}")
     return out_path
 
 

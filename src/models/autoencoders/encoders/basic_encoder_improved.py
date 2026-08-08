@@ -3,7 +3,17 @@ import torch.nn as nn
 from src.models.autoencoders.encoders.basic_encoder import BasicEncoder
 
 
+# TODO Update Docstring
 class ImprovedEncoder(BasicEncoder):
+    """
+    Improved Encoder with additional convolutional capacity.
+
+    Extends the basic encoder by adding two extra convolutional blocks
+    before the latent projection. This increases receptive field depth
+    and gives the model more parameters to extract spatial features
+    (texture, edges, shape) from CIFAR-10 before compressing to the
+    latent vector.
+    """
     def __init__(self, latent_dim: int = 256):
         super().__init__(latent_dim=latent_dim)
 
