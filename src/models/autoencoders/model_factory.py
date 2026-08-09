@@ -1,3 +1,4 @@
+from src.models.autoencoders.encoders.basic_residual_encoder import ResEncoder
 from src.models.autoencoders.BetaConditionalVAE import BetaConditionalVAE
 from src.models.autoencoders.VAE import VAE
 from src.models.autoencoders.decoders.basic_decoder import BasicDecoder
@@ -25,7 +26,7 @@ def improved_basic_vae(latent_dim=128):
     return VAE(encoder=encoder, decoder=decoder, latent_dim=latent_dim)
 
 def residual_vae(latent_dim=128):
-    encoder = ImprovedEncoder(latent_dim=latent_dim)
+    encoder = ResEncoder(latent_dim=latent_dim)
     decoder = ResDecoder(latent_dim=latent_dim)
     return VAE(encoder=encoder, decoder=decoder, latent_dim=latent_dim)
 
