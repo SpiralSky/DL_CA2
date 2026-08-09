@@ -9,6 +9,8 @@ from src.training.autoencoders.base_vae import (
     train_improved_base_vae,
     train_res_vae,
 )
+from src.training.autoencoders.conditional_vae import train_bcvae
+
 
 DATA_PATH = Path("/workspace/DL_CA2/data")
 CHECKPOINT_DIR = Path("/workspace/DL_CA2/checkpoints")
@@ -16,20 +18,26 @@ CHECKPOINT_DIR = Path("/workspace/DL_CA2/checkpoints")
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train VAE model")
+
     parser.add_argument(
         "--model",
         required=True,
-        choices=["basic", "improved", "res"],
+        choices=["basic", "improved", "res", "bcvae"],
         help="VAE model to train",
     )
+
     parser.add_argument(
         "--override",
         action="store_true",
         help="Ignore existing checkpoint and overwrite after training",
     )
+
     args = parser.parse_args()
 
-    CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
+    CHECKPOINT_DIR.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
 
     trainers = {
         "basic": (
@@ -43,6 +51,10 @@ def main() -> None:
         "res": (
             train_res_vae,
             "res_vae.pt",
+        ),
+        "bcvae": (
+            train_bcvae,
+            "bcvae.pt",
         ),
     }
 

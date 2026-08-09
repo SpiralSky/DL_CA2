@@ -723,6 +723,27 @@ analyze_latent_space(model, test_dataloader, class_names=labels, ax=ax)
 plt.show()
 
 # %% [markdown]
+# ### 5.5. Evaluating Generational Capabilities of ResVAE
+# The generational capabilities of `ResVAE` are inspected using the FID score and generally plotting class samples.
+#
+# ---
+# Results:
+#
+# While a subset of generated samples exhibits identifiable class structures, most outputs remain visually indistinct.
+#
+# This indicates that integrating a ResNet architecture does not substantially improve visual synthesis quality.
+#
+# Instead, performance appears constrained by the VAE's loss dynamics. KL divergence regularisation term penalises latent complexity, preventing further optimisation of the reconstruction loss.
+#
+# This is further supported by FID scores of the range 165-200, which is roughly the same as the previous architectures' generation scores.
+
+# %%
+_ = plot_class_samples(model, test_dataloader, class_names=labels)
+
+# %%
+calculate_class_fid(model, test_dataloader, labels)
+
+# %% [markdown]
 # ### 6. Better Architecture - Conditional and Beta VAEs.
 #
 # **Conditional VAE**:
@@ -732,6 +753,25 @@ plt.show()
 # **β-VAE**:
 # β-VAEs add a weight to the KL divergence term with the scalar β > 1, applying stronger pressure on the latent dimensions to match the prior. This encourages, independent latent representations as each dimension controls a single generative factor.
 
+# %% [markdown]
+# ### 6.1. BetaConditionalVAE
+# `BetaConditionalVAE` extends `AbstractVAE` with a beta parameter in training which is delegates the rest to its super's training loop.
+#
+# There are a few notable changes:
+# In its `forward` pass, labels are encoded into embeddings and then passed into the encoder and decoder respectively.
+#
+# `sample` takes in a  tensor of class labels for sampling from specific classes.
+#
+# For loss calculation (`get_loss`), beta value is used as a multiplier with kl divergence to control how much kl divergence affects loss.
+#
+# This affects the distribution of image mu, logvar values across the encoder's latent space.
+#
+# By supporting kl warmup where the input `beta` value to `self.get_loss` is:
+# $$
+# kl_weight * β
+# $$
+# Kl warmup is supported and helps the VAE learn reconstructions in early epochs without kl divergence dominating.
+
 # %%
 # %%load_clean
 from src.models.autoencoders.BetaConditionalVAE import *  # noqa: F401
@@ -740,6 +780,42 @@ _LOAD_CLEAN_IMPORTS_ae7a = [
     BetaConditionalVAE
 ]
 
+# %% [markdown]
+# ### 6.1. Conditional Encoder & Decoders
+
+# %% [markdown]
+# #### 6.1.1. Conditional Encoder
+# The conditional encoder mirrors the latent encoder, except that it takes in **embeddings** along with the standard input image tensor, concatenating them so that the Encoder can directly condition latent distribution on class labels during feature extraction.
+
 # %%
 # %%load_clean
-from src.models.autoencoders.model_factory import beta_conditional_vae
+from src.models.autoencoders.encoders.conditional_encoder import ConditionalEncoder  # noqa: F401
+
+# %% [markdown]
+# #### 6.1.2. Conditional Decoder
+# The conditional Decoder takes similarly takes in a Tensor of embeddings that contains class information, reducing the burden on the decoder for class inference
+#
+# This allows more controlled and targeted class generation so it can focus on generating more fine details.
+
+# %%
+# %%load_clean
+from src.models.autoencoders.decoders.conditional_decoder import ConditionalDecoder  # noqa: F401
+
+# %% [markdown]
+# ### 6.2. Creating Beta Conditional VAE
+# A simple Beta Conditional VAE is created using `ConditionalEncoder` and `ConditionalDecoder`
+
+# %%
+# %%load_clean
+from src.models.autoencoders.model_factory import beta_conditional_vae  # noqa: F401
+
+# %% [markdown]
+# ### 6.3. A simple training script
+# `BCVAE` is trained with a beta of 4 while warmups are set to 50 to account for the higher initial beta values to prevent the KL penalty from dominating.
+
+# %%
+# %%load_clean
+from src.training.autoencoders.conditional_vae import train_bcvae  # noqa: F401
+
+# %%
+model, test_dataloader, labels, history = train_bcvae(DATA_DIR, checkpoint_path=WEIGHTS_DIR / "bc_vae.pt")
