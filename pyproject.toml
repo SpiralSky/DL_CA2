@@ -29,6 +29,7 @@ dependencies = [
 [project.scripts]
 sync-notebooks = "scripts.sync:sync"
 build = "scripts.build:build_default"
+build-weights = "scripts.build_weights:main"
 
 [build-system]
 requires = ["hatchling"]

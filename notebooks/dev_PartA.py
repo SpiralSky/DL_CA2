@@ -253,7 +253,7 @@ from src.models.autoencoders.model_factory import basic_vae # noqa: F401
 from src.training.autoencoders.base_vae import train_base_vae  # noqa: F401
 
 # %%
-model, test_dataloader, labels, history = train_base_vae(DATA_DIR)
+model, test_dataloader, labels, history = train_base_vae(DATA_DIR, WEIGHTS_DIR / "base_vae.pt")
 
 # %% [markdown]
 # #### 3.1.2. Training Curves
@@ -467,7 +467,7 @@ from src.models.autoencoders.model_factory import improved_basic_vae  # noqa: F4
 from src.training.autoencoders.base_vae import train_improved_base_vae  # noqa: F401
 
 # %%
-model, test_dataloader, labels, history = train_improved_base_vae(DATA_DIR)
+model, test_dataloader, labels, history = train_improved_base_vae(DATA_DIR, WEIGHTS_DIR / "improved_vae.pt")
 
 # %% [markdown]
 # #### 4.3.1. Inspecting Training Curves
@@ -578,4 +578,4 @@ from src.models.autoencoders.model_factory import skip_vae  # noqa: F401
 from src.training.autoencoders.base_vae import train_skip_vae  # noqa: F401
 
 # %%
-model, test_dataloader, labels, history = train_skip_vae(DATA_DIR, checkpoint_path=WEIGHTS_DIR/"skip_vae")
+model, test_dataloader, labels, history = train_skip_vae(DATA_DIR, checkpoint_path=WEIGHTS_DIR/"skip_vae.pt")
