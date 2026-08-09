@@ -1,46 +1,68 @@
-import shutil
-import subprocess
-import sys
+import argparse
+import gc
+from pathlib import Path
 
-def check_uv() -> None:
-    print("Checking if uv installed...")
-    # noinspection deprecation
-    uv_path = shutil.which("uv")
-    if uv_path is None:
-        subprocess.run(
-            [sys.executable, "-m", "pip", "install", "--user", "uv"],
-            check=True
-        )
+import torch
 
-        # noinspection deprecation
-        uv_path = shutil.which("uv")
+from src.training.autoencoders.base_vae import (
+    train_base_vae,
+    train_improved_base_vae,
+    train_res_vae,
+)
 
-        if uv_path is None:
-            raise RuntimeError(
-                "Installed uv, but still cannot find uv in system PATH."
-            )
+DATA_PATH = Path("/workspace/DL_CA2/data")
+CHECKPOINT_DIR = Path("/workspace/DL_CA2/checkpoints")
 
-        print(f"Successfully installed uv at {uv_path}")
-    else:
-        print(f"Found uv installation at {uv_path}")
 
-def setup() -> None:
-    check_uv()
-
-    print("Syncing venv...")
-    subprocess.run(
-        ["uv", "sync"],
-        check=True
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Train VAE model")
+    parser.add_argument(
+        "--model",
+        required=True,
+        choices=["basic", "improved", "skip"],
+        help="VAE model to train",
     )
-    print("Sync complete!")
-
-    print("Setting up git hooks...")
-    subprocess.run(
-        ["git", "config", "core.hooksPath", ".githooks"],
-        check=True
+    parser.add_argument(
+        "--override",
+        action="store_true",
+        help="Ignore existing checkpoint and overwrite after training",
     )
-    print("Set up githooks at .githooks")
-    print("Setup Complete!")
+    args = parser.parse_args()
+
+    CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
+
+    trainers = {
+        "basic": (
+            train_base_vae,
+            "base_vae.pt",
+        ),
+        "improved": (
+            train_improved_base_vae,
+            "improved_vae.pt",
+        ),
+        "skip": (
+            train_res_vae,
+            "res_vae.pt",
+        ),
+    }
+
+    trainer, checkpoint_name = trainers[args.model]
+
+    print(f"\n=== Training {args.model} VAE ===")
+
+    trainer(
+        data_path=DATA_PATH,
+        checkpoint_path=CHECKPOINT_DIR / checkpoint_name,
+        override=args.override,
+    )
+
+    gc.collect()
+
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+    print("\n=== Training complete ===")
+
 
 if __name__ == "__main__":
-    setup()
+    main()

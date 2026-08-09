@@ -22,6 +22,11 @@ def main() -> None:
         choices=["basic", "improved", "skip"],
         help="VAE model to train",
     )
+    parser.add_argument(
+        "--override",
+        action="store_true",
+        help="Ignore existing checkpoint and overwrite after training",
+    )
     args = parser.parse_args()
 
     CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
@@ -37,7 +42,7 @@ def main() -> None:
         ),
         "skip": (
             train_res_vae,
-            "skip_vae.pt",
+            "res_vae.pt",
         ),
     }
 
@@ -48,7 +53,7 @@ def main() -> None:
     trainer(
         data_path=DATA_PATH,
         checkpoint_path=CHECKPOINT_DIR / checkpoint_name,
-        override=False,
+        override=args.override,
     )
 
     gc.collect()
