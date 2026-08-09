@@ -1,5 +1,4 @@
 # %%
-import src.models.autoencoders.model_factory
 # %load_ext magics.magics
 
 # %% [markdown]
@@ -345,7 +344,7 @@ _ = plot_metrics(history, specs)
 
 # %%
 # %%load_clean
-from src.models.autoencoders.inspection.latent_space import analyze_latent_space  # noqa: F401
+from models.autoencoders.inspection.standard_vae.latent_space import analyze_latent_space  # noqa: F401
 
 # %%
 fig, ax = plt.subplots()
@@ -360,7 +359,7 @@ plt.show()
 
 # %%
 # %%load_clean
-from src.models.autoencoders.inspection.reconstructions import plot_reconstructions # noqa: F401
+from models.autoencoders.inspection.standard_vae.reconstructions import plot_reconstructions # noqa: F401
 
 # %%
 _ = plot_reconstructions(model, test_dataloader)
@@ -387,7 +386,7 @@ _ = plot_reconstructions(model, test_dataloader)
 
 # %%
 # %%load_clean
-from src.models.autoencoders.inspection.latent_space import plot_kl_per_dim  # noqa: F401
+from models.autoencoders.inspection.kl_per_dim import plot_kl_per_dim
 
 # %%
 fig, ax = plt.subplots()
@@ -463,7 +462,7 @@ _ = plot_class_samples(model, test_dataloader, class_names=labels)
 
 # %%
 # %%load_clean
-from src.models.autoencoders.inspection.inspect_generation_quality import calculate_class_fid  # noqa: F401
+from models.autoencoders.inspection.standard_vae.class_fid import calculate_class_fid  # noqa: F401
 
 # %%
 calculate_class_fid(model, test_dataloader, labels)

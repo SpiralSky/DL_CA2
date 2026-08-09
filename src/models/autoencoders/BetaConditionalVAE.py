@@ -39,10 +39,16 @@ class BetaConditionalVAE(AbstractVAE):
 
     # TODO Refactor (Clashing method signature)
     # noinspection method-overriding
-    def get_loss(self, recon, images, mu, logvar, *, beta=None, **kwargs):
-        losses = super().get_loss(recon, images, mu, logvar, **kwargs)
-        beta = self.beta if beta is None else beta
-        losses["total"] = losses["reconstruction"] + beta * losses["kl_divergence"]
+    def get_loss(self, recon, images, mu, logvar, *, kl_weight=1.0, **kwargs):
+        losses = super().get_loss(
+            recon,
+            images,
+            mu,
+            logvar,
+            kl_weight=kl_weight * self.beta,
+            **kwargs,
+        )
+
         return losses
 
     def run_epoch(self, loader, device, optimizer, config, train):
@@ -67,7 +73,7 @@ class BetaConditionalVAE(AbstractVAE):
                     logvar,
                     recon_loss_type=config["recon_loss_type"],
                     free_bits=config["free_bits"],
-                    beta=config["kl_weight"] * self.beta,
+                    kl_weight=config["kl_weight"],
                 )
 
                 if train:

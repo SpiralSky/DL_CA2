@@ -1,10 +1,10 @@
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from matplotlib import pyplot as plt
 
 
 @torch.no_grad()
-def plot_reconstructions(
+def plot_conditional_reconstructions(
     model,
     data_loader,
     *,
@@ -12,19 +12,26 @@ def plot_reconstructions(
     num_images: int = 8,
     axes: np.ndarray | None = None,
 ) -> np.ndarray:
-    """
-    Plots original images and their reconstructions.
-    """
 
     device = device or next(model.parameters()).device
     model.eval()
 
-    images, _ = next(iter(data_loader))
+    images, labels = next(iter(data_loader))
+
     images = images[:num_images].to(device)
+    labels = labels[:num_images].to(device)
 
-    reconstructions, _, _ = model(images)
+    reconstructions, _, _ = model(
+        images,
+        labels,
+    )
 
-    images = images.cpu().permute(0, 2, 3, 1).numpy()
+    images = (
+        images.cpu()
+        .permute(0, 2, 3, 1)
+        .numpy()
+    )
+
     reconstructions = (
         reconstructions.cpu()
         .permute(0, 2, 3, 1)

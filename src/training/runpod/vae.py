@@ -54,7 +54,7 @@ def main() -> None:
         ),
         "bcvae": (
             train_bcvae,
-            "bcvae.pt",
+            "bc_vae.pt",
         ),
     }
 
