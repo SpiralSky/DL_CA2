@@ -644,4 +644,13 @@ from src.models.autoencoders.model_factory import residual_vae  # noqa: F401
 from src.training.autoencoders.base_vae import train_res_vae  # noqa: F401
 
 # %%
-model, test_dataloader, labels, history = train_res_vae(DATA_DIR, checkpoint_path=WEIGHTS_DIR / "skip_vae.pt")
+model, test_dataloader, labels, history = train_res_vae(DATA_DIR, checkpoint_path=WEIGHTS_DIR / "res_vae.pt")
+
+# %% [markdown]
+# ### 6. Better Architecture - Conditional and Beta VAEs.
+#
+# **Conditional VAE**:
+# Within encoder input features and the decoder's input feature map, labels for each class are encoded. This encoded pattern, given a pattern with images between classes allows the VAE to differentiate between classes and use the encoded features as a crutch to easily encode and decode features.
+#
+# **β-VAE**:
+# Beta Warmup

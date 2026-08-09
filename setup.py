@@ -27,12 +27,14 @@ def check_uv() -> None:
     uv_path = shutil.which("uv")
 
     if uv_path is None:
+        print("uv not found. Installing...")
+
         subprocess.run(
             [sys.executable, "-m", "pip", "install", "--user", "uv"],
             check=True,
         )
 
-        # Refresh PATH for pip --user installs
+        # Add pip user install location to PATH
         user_bin = os.path.expanduser("~/.local/bin")
         os.environ["PATH"] = f"{user_bin}:{os.environ['PATH']}"
 
@@ -51,21 +53,27 @@ def setup() -> None:
 
     check_uv()
 
-    print("Syncing venv...")
+    print("\nSyncing venv...")
     subprocess.run(
         ["uv", "sync"],
         check=True,
+        env=os.environ.copy(),
     )
     print("Sync complete!")
 
-    print("Setting up git hooks...")
+    print("\nSetting up git hooks...")
     subprocess.run(
-        ["git", "config", "core.hooksPath", ".githooks"],
+        [
+            "git",
+            "config",
+            "core.hooksPath",
+            ".githooks",
+        ],
         check=True,
     )
     print("Set up githooks at .githooks")
 
-    print("Setup Complete!")
+    print("\nSetup Complete!")
 
 
 if __name__ == "__main__":
