@@ -111,6 +111,7 @@ class BetaConditionalVAE(AbstractVAE):
 
         self.beta = beta
 
+
         return super().fit(
             train_loader,
             val_loader,

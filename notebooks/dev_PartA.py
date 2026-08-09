@@ -738,9 +738,28 @@ plt.show()
 # This is further supported by FID scores of the range 165-200, which is roughly the same as the previous architectures' generation scores.
 #
 # <details>
-# <summary>Saved Output (Generated Images)</summary>
+# <summary>Saved Output (Generated Image of classes)</summary>
 #
-# ![image.png](attachment:c6e2af3b-47df-4bfc-8614-1b1373e8856b.png)
+# ![image.png](attachment:b39383ff-ab23-4be6-abb5-a950608a4095.png)
+# </details>
+#
+# <details>
+# <summary>Saved Output (Generated Image of PIDs)</summary>
+#
+# | Class ID | Class | FID | Samples |
+# | :---: | :--- | :---: | :---: |
+# | 0 | all | 128.125717 | 7500 |
+# | 1 | airplane | 172.304810 | 734 |
+# | 2 | automobile | 201.670212 | 751 |
+# | 3 | bird | 173.698410 | 766 |
+# | 4 | cat | 167.928787 | 697 |
+# | 5 | deer | 190.140884 | 767 |
+# | 6 | dog | 174.019226 | 759 |
+# | 7 | frog | 208.309860 | 760 |
+# | 8 | horse | 216.317078 | 751 |
+# | 9 | ship | 182.129883 | 754 |
+# | 10 | truck | 215.941818 | 761 |
+#
 # </details>
 
 # %%
@@ -880,6 +899,10 @@ from src.models.autoencoders.inspection.c_vae.conditional_reconstruction import 
 # %%load_clean
 from src.models.autoencoders.inspection.c_vae.conditional_kl_per_dim import plot_conditional_kl_per_dim  # noqa: F401
 
+# %%
+# %%load_clean
+from src.models.autoencoders.inspection.c_vae.plot_class_samples import plot_conditional_class_samples  # noqa: F401
+
 # %% [markdown]
 # ### 6.5. Plotting Analysis on BC-VAE results
 
@@ -896,5 +919,10 @@ plt.show()
 
 # %% [markdown]
 # ### 6.5. Generative Capabilities of BC-VAE
+# The **Generative Capabilities of BC-VAE are also tested
 
 # %%
+_ = plot_class_samples(model, test_dataloader, class_names=labels)
+
+# %%
+calculate_class_fid(model, test_dataloader, labels)

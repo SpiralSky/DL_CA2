@@ -9,6 +9,7 @@ from src.datasets.cifar10 import get_dataset, get_dataloaders
 from src.models.autoencoders.model_factory import beta_conditional_vae
 from src.training.autoencoders.base_vae import print_history
 from src.training.save_state import load_checkpoint, save_checkpoint
+from training.callbacks import EarlyStopping
 
 
 def train_bcvae(
@@ -43,6 +44,8 @@ def train_bcvae(
         history = load_checkpoint(model, checkpoint_path)
         print_history(history, loaded=True)
         return model, test_dataloader, labels, history
+
+    early_stopping = EarlyStopping(start_epoch=50)
 
     history = model.fit(
         train_loader=train_dataloader,
