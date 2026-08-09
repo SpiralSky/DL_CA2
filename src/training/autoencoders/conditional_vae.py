@@ -56,7 +56,8 @@ def train_bcvae(
         grad_clip_norm=1.0,
         free_bits=0.4,
         kl_warmup_epochs=50,
-        beta=4
+        beta=4,
+        early_stopping=early_stopping
     )
 
     if checkpoint_path:
