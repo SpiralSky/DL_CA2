@@ -1,4 +1,7 @@
+import gc
 from pathlib import Path
+
+import torch
 
 from src.training.autoencoders.base_vae import (
     train_base_vae,
@@ -18,6 +21,8 @@ def main() -> None:
         checkpoint_path=CHECKPOINT_DIR / "base_vae.pt",
         override=False,
     )
+    gc.collect()
+    torch.cuda.empty_cache()
 
     print("\n=== Training Improved VAE ===")
     train_improved_base_vae(
@@ -25,6 +30,8 @@ def main() -> None:
         checkpoint_path=CHECKPOINT_DIR / "improved_vae.pt",
         override=False,
     )
+    gc.collect()
+    torch.cuda.empty_cache()
 
     print("\n=== Training Skip VAE ===")
     train_skip_vae(
@@ -32,6 +39,8 @@ def main() -> None:
         checkpoint_path=CHECKPOINT_DIR / "skip_vae.pt",
         override=False,
     )
+    gc.collect()
+    torch.cuda.empty_cache()
 
     print("\n=== All training complete ===")
 
