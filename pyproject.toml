@@ -30,7 +30,7 @@ dependencies = [
 sync-notebooks = "scripts.sync:sync"
 build = "scripts.build:build_default"
 build-weights = "scripts.build_weights:main"
-direct-trainvae = "src.training.runpod.autoencoders.vae:main"
+direct-trainvae = "src.training.runpod.vae:main"
 
 [build-system]
 requires = ["hatchling"]
