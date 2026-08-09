@@ -92,23 +92,25 @@ class BetaConditionalVAE(AbstractVAE):
     # TODO: Refactor to use custom Trainer
     # noinspection method-overriding
     def fit(
-        self,
-        train_loader: DataLoader,
-        val_loader: DataLoader,
-        device: torch.device,
-        max_epochs: int,
-        lr: float,
-        grad_clip_norm: float,
-        recon_loss_type: str = "mse",
-        free_bits: float = 0.0,
-        beta: float = 1.0,
-        kl_warmup_epochs: int = 30,
-        *,
-        optimizer: torch.optim.Optimizer | None = None,
-        scheduler=None,
-        early_stopping=None,
+            self,
+            train_loader: DataLoader,
+            val_loader: DataLoader,
+            device: torch.device,
+            max_epochs: int,
+            lr: float,
+            grad_clip_norm: float,
+            recon_loss_type: str = "mse",
+            free_bits: float = 0.0,
+            beta: float = 1.0,
+            kl_warmup_epochs: int = 30,
+            *,
+            optimizer: torch.optim.Optimizer | None = None,
+            scheduler=None,
+            early_stopping=None,
     ) -> TrainingHistory:
+
         self.beta = beta
+
         return super().fit(
             train_loader,
             val_loader,
@@ -118,8 +120,8 @@ class BetaConditionalVAE(AbstractVAE):
             grad_clip_norm,
             recon_loss_type,
             free_bits,
+            kl_warmup_epochs,
             optimizer=optimizer,
             scheduler=scheduler,
             early_stopping=early_stopping,
         )
-

@@ -1,4 +1,5 @@
 # %%
+
 # %load_ext magics.magics
 
 # %% [markdown]
@@ -735,6 +736,12 @@ plt.show()
 # Instead, performance appears constrained by the VAE's loss dynamics. KL divergence regularisation term penalises latent complexity, preventing further optimisation of the reconstruction loss.
 #
 # This is further supported by FID scores of the range 165-200, which is roughly the same as the previous architectures' generation scores.
+#
+# <details>
+# <summary>Saved Output (Generated Images)</summary>
+#
+# ![image.png](attachment:c6e2af3b-47df-4bfc-8614-1b1373e8856b.png)
+# </details>
 
 # %%
 _ = plot_class_samples(model, test_dataloader, class_names=labels)
@@ -818,3 +825,76 @@ from src.training.autoencoders.conditional_vae import train_bcvae  # noqa: F401
 
 # %%
 model, test_dataloader, labels, history = train_bcvae(DATA_DIR, checkpoint_path=WEIGHTS_DIR / "bc_vae.pt")
+
+# %% [markdown]
+# #### 6.3.1. Analysing Training Curves
+# Training curves are plotted again
+#
+# ---
+# <details>
+# <summary>Saved Output (Generated Images)</summary>
+#
+# ![image.png](attachment:c6e2af3b-47df-4bfc-8614-1b1373e8856b.png)
+# </details>
+
+# %%
+specs: list[MetricPlotSpec] = [
+    {
+        "title": "Reconstruction Loss",
+        "metric": "reconstruction",
+    },
+    {
+        "title": "KL Divergence",
+        "metric": "kl_divergence",
+        "scale": ("symlog", {"linthresh": 10}),
+    },
+    {
+        "title": "KL Warmup",
+        "metric": "kl_weight",
+        "extra_metric": True,
+    },
+]
+
+_ = plot_metrics(history, specs)
+
+# %% [markdown]
+# ### 6.4. Analysing Model
+
+# %% [markdown]
+# #### 6.4.1. Analysis Functions
+# Model analysis functions are altered slightly to use special class-based sampling for C-VAE
+
+# %%
+# %%load_clean
+from src.models.autoencoders.inspection.c_vae.conditional_fid import calculate_conditional_class_fid  # noqa: F401
+
+# %%
+# %%load_clean
+from src.models.autoencoders.inspection.c_vae.conditional_latent_space import analyze_conditional_latent_space  # noqa: F401
+
+# %%
+# %%load_clean
+from src.models.autoencoders.inspection.c_vae.conditional_reconstruction import plot_conditional_reconstructions #noqa: F401
+
+# %%
+# %%load_clean
+from src.models.autoencoders.inspection.c_vae.conditional_kl_per_dim import plot_conditional_kl_per_dim  # noqa: F401
+
+# %% [markdown]
+# ### 6.5. Plotting Analysis on BC-VAE results
+
+# %%
+_ = plot_conditional_reconstructions(model, test_dataloader)
+
+fig, ax = plt.subplots()
+plot_conditional_kl_per_dim(model, test_dataloader, ax=ax)
+plt.show()
+
+fig, ax = plt.subplots()
+analyze_conditional_latent_space(model, test_dataloader, class_names=labels, ax=ax)
+plt.show()
+
+# %% [markdown]
+# ### 6.5. Generative Capabilities of BC-VAE
+
+# %%
