@@ -1,5 +1,5 @@
 # %%
-
+import src.models.autoencoders.model_factory
 # %load_ext magics.magics
 
 # %% [markdown]
@@ -633,11 +633,8 @@ from src.models.autoencoders.decoders.basic_residual_decoder import ResDecoder  
 from src.models.autoencoders.model_factory import residual_vae  # noqa: F401
 
 # %% [markdown]
-# ### 5.3. Residual Encoder & Residual Decoder
-# The **ResDecoder** extends the standard decoder by inserting ResidualBlocks before each upsampling convolution block. This adds depth to the **upsampling pathway without vanishing gradients**, allowing the decoder to refine spatial features at each resolution before expanding them.
-# Sigmoid activation is used at the final layer to **normalise outputs to [0, 1]**, matching the input normalisation.
-#
-# Similarly, the ResEncoder extends the standard encoder by placing ResidualBlocks after each downsampling block. The s**kip connections in each residual block** allow gradients to flow directly through the encoder during backpropagation, enabling **stable training** of a deeper feature extraction stack before the latent projection.
+# ### 5.3. Training Res VAE
+# Residual Encoder and Decoder are trained with the standard training script.
 
 # %%
 # %%load_clean
@@ -647,10 +644,102 @@ from src.training.autoencoders.base_vae import train_res_vae  # noqa: F401
 model, test_dataloader, labels, history = train_res_vae(DATA_DIR, checkpoint_path=WEIGHTS_DIR / "res_vae.pt")
 
 # %% [markdown]
+# #### 5.3.1. Checking Training Curves
+# History of Residual Encoder/Decoder is plotted.
+#
+# ---
+# Results:
+#
+# Loss curves are all standard, validation and train losses are the same.
+# KL Warmup works correctly
+#
+# <details>
+# <summary>Saved Output (Generated Images)</summary>
+#
+# ![image.png](attachment:670245c4-e0df-4aff-a981-21fa1cd2800d.png)
+#
+# </details>
+
+# %%
+specs: list[MetricPlotSpec] = [
+    {
+        "title": "Reconstruction Loss",
+        "metric": "reconstruction",
+    },
+    {
+        "title": "KL Divergence",
+        "metric": "kl_divergence",
+        "scale": ("symlog", {"linthresh": 10}),
+    },
+    {
+        "title": "KL Warmup",
+        "metric": "kl_weight",
+        "extra_metric": True,
+    },
+]
+
+_ = plot_metrics(history, specs)
+
+# %% [markdown]
+# ### 5.4. Analysing VAE with Residual Layers
+#
+# Results:
+#
+# Output Images are still blurry and the VAE can still generate general outlines, such as the fox (or whatever animal that is)'s coloured ears, the truck's windowpane, etc.
+#
+# <details>
+# <summary>Saved Output (Generated Images)</summary>
+#
+# ![image.png](attachment:2c1df6b1-136a-4448-a167-2bb399bd94a1.png)
+# </details>
+#
+# ---
+# KL Contribution per dimension has decreased somewhat, with dimensions ~100-120 not contributing much at all
+#
+# <details>
+# <summary>Saved Output (Generated Images)</summary>
+#
+# ![image.png](attachment:937c31df-aa9b-4e35-bb99-de4c9fb3dc36.png)
+# </details>
+#
+# ---
+# TSNE seems to be somewhat seperating, as colour clusters can be distinguished seperately
+#
+# <details>
+# <summary>Saved Output (Generated Images)</summary>
+#
+# ![image.png](attachment:c6e2af3b-47df-4bfc-8614-1b1373e8856b.png)
+# </details>
+
+# %%
+_ = plot_reconstructions(model, test_dataloader)
+
+fig, ax = plt.subplots()
+plot_kl_per_dim(model, test_dataloader, ax=ax)
+plt.show()
+
+fig, ax = plt.subplots()
+analyze_latent_space(model, test_dataloader, class_names=labels, ax=ax)
+plt.show()
+
+# %% [markdown]
 # ### 6. Better Architecture - Conditional and Beta VAEs.
 #
 # **Conditional VAE**:
-# Within encoder input features and the decoder's input feature map, labels for each class are encoded. This encoded pattern, given a pattern with images between classes allows the VAE to differentiate between classes and use the encoded features as a crutch to easily encode and decode features.
+# In Conditional VAE setups, class labels are fed to the encoder **alongside the image and concatenated to z before the decoder**. This removes the burden of encoding class identity into z , freeing the latent dimensions to capture intra-class variation such as pose, colour, and background.
 #
+# ---
 # **β-VAE**:
-# Beta Warmup
+# β-VAEs add a weight to the KL divergence term with the scalar β > 1, applying stronger pressure on the latent dimensions to match the prior. This encourages, independent latent representations as each dimension controls a single generative factor.
+
+# %%
+# %%load_clean
+from src.models.autoencoders.BetaConditionalVAE import *  # noqa: F401
+
+_LOAD_CLEAN_IMPORTS_ae7a = [
+    BetaConditionalVAE
+]
+
+# %%
+# %%load_clean
+from src.models.autoencoders.model_factory import beta_conditional_vae

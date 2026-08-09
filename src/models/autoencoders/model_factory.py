@@ -30,8 +30,8 @@ def residual_vae(latent_dim=128):
     decoder = ResDecoder(latent_dim=latent_dim)
     return VAE(encoder=encoder, decoder=decoder, latent_dim=latent_dim)
 
-def beta_conditional_vae(num_classes, in_channels=3, base_channels=32, latent_dim=128):
-    encoder = ConditionalEncoder(input_channels=in_channels, output_channels=base_channels, latent_dim=latent_dim)
-    decoder = ConditionalDecoder(out_channels=in_channels, base_channels=base_channels, latent_dim=latent_dim)
+def beta_conditional_vae(num_classes, latent_dim=128):
+    encoder = ConditionalEncoder(latent_dim=latent_dim)
+    decoder = ConditionalDecoder(latent_dim=latent_dim)
 
     return BetaConditionalVAE(encoder=encoder, decoder=decoder, latent_dim=latent_dim, num_classes=num_classes)

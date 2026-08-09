@@ -23,6 +23,7 @@ class BetaConditionalVAE(AbstractVAE):
         self.beta = beta
 
     def forward(self, images, labels):
+        # squeeze() turns 2d vectors into a 1d vector. long() casts to 64-bit integers for processing.
         labels = labels.squeeze().long()
         embeddings = self.label_embeddings(labels)
         mu, logvar = self.encoder(images, embeddings)
@@ -36,23 +37,29 @@ class BetaConditionalVAE(AbstractVAE):
         y = self.label_embeddings(labels.to(device))
         return self.decoder(z, y)
 
+    # TODO Refactor (Clashing method signature)
+    # noinspection method-overriding
     def get_loss(self, recon, images, mu, logvar, *, beta=None, **kwargs):
         losses = super().get_loss(recon, images, mu, logvar, **kwargs)
-        beta = self.beta if beta is None else betas
+        beta = self.beta if beta is None else beta
         losses["total"] = losses["reconstruction"] + beta * losses["kl_divergence"]
         return losses
 
     def run_epoch(self, loader, device, optimizer, config, train):
         self.train() if train else self.eval()
-        totals = {"total": 0.0, "reconstruction": 0.0, "kl_divergence": 0.0}
+
+        totals = {"loss": 0.0, "reconstruction": 0.0, "kl_divergence": 0.0}
         num_batches = 0
+
         with torch.enable_grad() if train else torch.no_grad():
             for batch in loader:
                 images = batch[0].to(device)
                 labels = batch[1].to(device)
+
                 if train:
                     optimizer.zero_grad()
                 recon, mu, logvar = self(images, labels)
+
                 losses = self.get_loss(
                     recon,
                     images,
@@ -60,17 +67,20 @@ class BetaConditionalVAE(AbstractVAE):
                     logvar,
                     recon_loss_type=config["recon_loss_type"],
                     free_bits=config["free_bits"],
-                    beta=config.get("beta", self.beta),
+                    beta=config["kl_weight"] * self.beta,
                 )
+
                 if train:
-                    losses["total"].backward()
+                    losses["loss"].backward()
                     torch.nn.utils.clip_grad_norm_(
                         self.parameters(), max_norm=config["grad_clip_norm"]
                     )
                     optimizer.step()
+
                 for k in totals:
                     totals[k] += losses[k].item()
                 num_batches += 1
+
         return {k: v / num_batches for k, v in totals.items()}
 
     # TODO: Refactor to use custom Trainer
@@ -86,6 +96,7 @@ class BetaConditionalVAE(AbstractVAE):
         recon_loss_type: str = "mse",
         free_bits: float = 0.0,
         beta: float = 1.0,
+        kl_warmup_epochs: int = 30,
         *,
         optimizer: torch.optim.Optimizer | None = None,
         scheduler=None,
@@ -105,3 +116,4 @@ class BetaConditionalVAE(AbstractVAE):
             scheduler=scheduler,
             early_stopping=early_stopping,
         )
+
