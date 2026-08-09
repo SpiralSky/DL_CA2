@@ -10,6 +10,13 @@ def load_checkpoint(
     model: nn.Module,
     checkpoint_path: Path,
 ) -> TrainingHistory:
+    """
+    Loads a model from a checkpoint file.
+    Includes model history.
+    :param model: Model to load on.
+    :param checkpoint_path: Path to checkpoint file.
+    :return: None
+    """
     checkpoint = torch.load(
         checkpoint_path,
         weights_only=False,
@@ -25,6 +32,13 @@ def save_checkpoint(
     history: TrainingHistory,
     checkpoint_path: Path,
 ) -> None:
+    """
+    Saves a model to a checkpoint file.
+    :param model: Model to save from.
+    :param history: Model history.
+    :param checkpoint_path: Path to checkpoint file.
+    :return: None
+    """
     checkpoint_path.parent.mkdir(
         parents=True,
         exist_ok=True,

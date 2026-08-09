@@ -29,7 +29,7 @@ class MetricPlotSpec(TypedDict, total=False):
     scale: str | tuple[str, dict[str, Any]] | None
 
 
-def _plot_one(history: TrainingHistory, spec: MetricPlotSpec, ax: Axes) -> None:
+def plot_one(history: TrainingHistory, spec: MetricPlotSpec, ax: Axes) -> None:
     title = spec["title"]
     metric = spec["metric"]
     is_extra = spec.get("extra_metric", False)
@@ -95,7 +95,7 @@ def plot_metrics(
     axes = [row[0] for row in axes_grid]
 
     for ax, spec in zip(axes, specs):
-        _plot_one(history, spec, ax)
+        plot_one(history, spec, ax)
 
     fig.tight_layout()
     return fig, axes

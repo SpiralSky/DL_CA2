@@ -14,7 +14,7 @@
 # %%
 # <$IMPORTS>
 from pathlib import Path
-from matplotlib import pyplot as plt
+
 from torch.utils.data import DataLoader
 
 # %% [markdown]
@@ -93,7 +93,7 @@ from src.analysis.analyse_images import get_class_statistics # noqa: F401
 get_class_statistics(eda_dataloader, cifar_10_dataset.classes)
 
 # %% [markdown]
-# ## 2. Models
+# ## 2. Models and Required Dependencies
 
 # %% [markdown]
 # ### 2.1. Splitting Data
@@ -241,7 +241,36 @@ from src.models.autoencoders.model_factory import basic_vae # noqa: F401
 # ## 3. Base VAE: Train & Analysis
 
 # %% [markdown]
-# ### 3.1. Training Base VAE
+# ### 3.1. Training Utils
+
+# %% [markdown]
+# #### 3.1.1. Load and Save Checkpoints
+# `load_checkpoint` is used to load a model's **state dict and history** from a file with `torch.load`
+#
+# `save_checkpoint` is used to save a model's **state dict and history** from a file with `torch.save`
+#
+# **NOTE**: Both **just the weights** and **weights with history** will be submitted for this reason (these functions require the weights and history).
+#
+
+# %%
+# %%load_clean
+from src.training.save_state import *  # noqa: F401
+
+_LOAD_CLEAN_IMPORTS_0530 = [
+    load_checkpoint,
+    save_checkpoint
+]
+
+# %% [markdown]
+# #### 3.1.2. Printing History
+# This small function is used in training scripts to log information when the history is loaded (if loaded from a checkpoint).
+
+# %%
+# %%load_clean
+from src.training.autoencoders.base_vae import print_history  # noqa: F401
+
+# %% [markdown]
+# ### 3.2. Training Base VAE
 # `train_base_vae` is a basic training function to train and evaluate the VAE by running model.fit
 #
 # By default, batch size is 256 and lr is 3e-3 (can be changed for smaller gpu with less vram).
@@ -276,7 +305,13 @@ model, test_dataloader, labels, history = train_base_vae(DATA_DIR, WEIGHTS_DIR /
 
 # %%
 # %%load_clean
-from src.models.autoencoders.inspection.training_history import plot_metrics, MetricPlotSpec  # noqa: F401
+from src.models.autoencoders.inspection.training_history import *  # noqa: F401
+
+_LOAD_CLEAN_IMPORTS_b756 = [
+    MetricPlotSpec,
+    plot_metrics,
+    plot_one
+]
 
 # %%
 specs: list[MetricPlotSpec] = [

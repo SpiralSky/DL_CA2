@@ -13,6 +13,7 @@ from src.models.autoencoders.model_factory import (
 from src.models.util.TrainingHistory import TrainingHistory
 from src.training.save_state import load_checkpoint, save_checkpoint
 
+
 # TODO Add docstring
 def print_history(history: TrainingHistory, *, loaded: bool = False) -> None:
     print(history)
