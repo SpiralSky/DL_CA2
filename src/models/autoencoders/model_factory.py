@@ -24,7 +24,7 @@ def improved_basic_vae(latent_dim=128):
     decoder = ImprovedDecoder(latent_dim=latent_dim)
     return VAE(encoder=encoder, decoder=decoder, latent_dim=latent_dim)
 
-def skip_vae(latent_dim=128):
+def residual_vae(latent_dim=128):
     encoder = ImprovedEncoder(latent_dim=latent_dim)
     decoder = ResDecoder(latent_dim=latent_dim)
     return VAE(encoder=encoder, decoder=decoder, latent_dim=latent_dim)

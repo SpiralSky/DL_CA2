@@ -592,8 +592,12 @@ _ = plot_class_samples(model, test_dataloader, class_names=labels)
 calculate_class_fid(model, test_dataloader, labels)
 
 # %% [markdown]
-# ### 4.6. VAE with Skip Layers
-#
+# ### 5. VAE with Residual Layers
+# A simple VAE with a residual block is used for the Decoder while the encoder remains the same
+
+# %% [markdown]
+# ### 5.1. Residual Block and ResDecoder
+# ResidualBlock is a simple superclass of `nn.Module` that implements
 
 # %%
 # %%load_clean
@@ -606,11 +610,11 @@ _LOAD_CLEAN_IMPORTS_b847 = [
 
 # %%
 # %%load_clean
-from src.models.autoencoders.model_factory import skip_vae  # noqa: F401
+from src.models.autoencoders.model_factory import residual_vae  # noqa: F401
 
 # %%
 # %%load_clean
-from src.training.autoencoders.base_vae import train_skip_vae  # noqa: F401
+from src.training.autoencoders.base_vae import train_res_vae  # noqa: F401
 
 # %%
-model, test_dataloader, labels, history = train_skip_vae(DATA_DIR, checkpoint_path=WEIGHTS_DIR/"skip_vae.pt")
+model, test_dataloader, labels, history = train_res_vae(DATA_DIR, checkpoint_path=WEIGHTS_DIR / "skip_vae.pt")

@@ -8,7 +8,7 @@ from src.models.autoencoders.VAE import VAE
 from src.models.autoencoders.model_factory import (
     basic_vae,
     improved_basic_vae,
-    skip_vae,
+    residual_vae,
 )
 from src.models.util.TrainingHistory import TrainingHistory
 from src.training.save_state import load_checkpoint, save_checkpoint
@@ -116,7 +116,7 @@ def train_improved_base_vae(
     return model, test_dataloader, labels, history
 
 
-def train_skip_vae(
+def train_res_vae(
     data_path: Path,
     checkpoint_path: Path | None = None,
     *,
@@ -138,7 +138,7 @@ def train_skip_vae(
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
 
-    model = skip_vae(latent_dim=128).to(device)
+    model = residual_vae(latent_dim=128).to(device)
 
     if checkpoint_path and checkpoint_path.exists() and not override:
         history = load_checkpoint(model, checkpoint_path)

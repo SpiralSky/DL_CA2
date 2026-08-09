@@ -7,7 +7,7 @@ import torch
 from src.training.autoencoders.base_vae import (
     train_base_vae,
     train_improved_base_vae,
-    train_skip_vae,
+    train_res_vae,
 )
 
 DATA_PATH = Path("/workspace/DL_CA2/data")
@@ -36,7 +36,7 @@ def main() -> None:
             "improved_vae.pt",
         ),
         "skip": (
-            train_skip_vae,
+            train_res_vae,
             "skip_vae.pt",
         ),
     }
