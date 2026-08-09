@@ -597,11 +597,11 @@ calculate_class_fid(model, test_dataloader, labels)
 
 # %%
 # %%load_clean
-from src.models.autoencoders.decoders.basic_decoder_skip import *  # noqa: F401
+from src.models.autoencoders.decoders.basic_residual_decoder import *  # noqa: F401
 
 _LOAD_CLEAN_IMPORTS_b847 = [
     ResidualBlock,
-    SkipDecoder
+    ResDecoder
 ]
 
 # %%
