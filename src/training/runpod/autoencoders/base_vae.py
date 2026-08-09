@@ -19,7 +19,7 @@ def main() -> None:
     parser.add_argument(
         "--model",
         required=True,
-        choices=["basic", "improved", "skip"],
+        choices=["basic", "improved", "res"],
         help="VAE model to train",
     )
     parser.add_argument(
