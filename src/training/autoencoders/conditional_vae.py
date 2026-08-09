@@ -9,7 +9,7 @@ from src.datasets.cifar10 import get_dataset, get_dataloaders
 from src.models.autoencoders.model_factory import beta_conditional_vae
 from src.training.autoencoders.base_vae import print_history
 from src.training.save_state import load_checkpoint, save_checkpoint
-from training.callbacks import EarlyStopping
+from src.training.callbacks import EarlyStopping
 
 
 def train_bcvae(
