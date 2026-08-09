@@ -40,7 +40,7 @@ def main() -> None:
             train_improved_base_vae,
             "improved_vae.pt",
         ),
-        "skip": (
+        "res": (
             train_res_vae,
             "res_vae.pt",
         ),
