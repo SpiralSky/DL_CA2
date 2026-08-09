@@ -1,4 +1,5 @@
 # %%
+
 # %load_ext magics.magics
 
 # %% [markdown]
@@ -596,21 +597,47 @@ calculate_class_fid(model, test_dataloader, labels)
 # A simple VAE with a residual block is used for the Decoder while the encoder remains the same
 
 # %% [markdown]
-# ### 5.1. Residual Block and ResDecoder
-# ResidualBlock is a simple superclass of `nn.Module` that implements
+# ### 5.1. Residual Block
+# ResidualBlock is a simple subclass of `nn.Module` that adds the input feature map to the output of 2 convolutional blocks within itself.
+#
+# The **skip connection** allows gradients to flow directly through during backpropagation, preventing vanishing gradient and is also easier to optimise.
 
 # %%
 # %%load_clean
-from src.models.autoencoders.decoders.basic_residual_decoder import *  # noqa: F401
+from src.models.autoencoders.util.ResidualBlock import ResidualBlock  # noqa: F401
 
-_LOAD_CLEAN_IMPORTS_b847 = [
-    ResidualBlock,
-    ResDecoder
-]
+# %% [markdown]
+# ### 5.2. Residual Encoder & Residual Decoder
+# The `ResDecoder` extends the standard decoder by inserting **ResidualBlock**s before each upsampling convolution block. This adds depth to the upsampling pathway without vanishing gradients, allowing the decoder to refine spatial features at each resolution before expanding them.
+#
+# Sigmoid activation is used at the final layer to normalise outputs to [0, 1], matching the input normalisation.
+#
+# ---
+#
+# Similarly, the `ResEncoder` class extends the standard encoder with `ResidualBlock`s to allow input feature maps to pass through
+
+# %%
+# %%load_clean
+from src.models.autoencoders.encoders.basic_residual_encoder import ResEncoder  # noqa: F401
+
+# %%
+# %%load_clean
+from src.models.autoencoders.decoders.basic_residual_decoder import ResDecoder  # noqa: F401
+
+# %% [markdown]
+# ### 5.2. Residual VAE
+# Simple VAE is created using the residual blocks.
 
 # %%
 # %%load_clean
 from src.models.autoencoders.model_factory import residual_vae  # noqa: F401
+
+# %% [markdown]
+# ### 5.3. Residual Encoder & Residual Decoder
+# The **ResDecoder** extends the standard decoder by inserting ResidualBlocks before each upsampling convolution block. This adds depth to the **upsampling pathway without vanishing gradients**, allowing the decoder to refine spatial features at each resolution before expanding them.
+# Sigmoid activation is used at the final layer to **normalise outputs to [0, 1]**, matching the input normalisation.
+#
+# Similarly, the ResEncoder extends the standard encoder by placing ResidualBlocks after each downsampling block. The s**kip connections in each residual block** allow gradients to flow directly through the encoder during backpropagation, enabling **stable training** of a deeper feature extraction stack before the latent projection.
 
 # %%
 # %%load_clean
