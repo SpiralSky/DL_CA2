@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 from src.models.util.TrainingHistory import TrainingHistory
 from src.training.callbacks import EarlyStopping
 
+
 # TODO Remove Train Config / Refactor
 class VAETrainConfig(TypedDict):
     recon_loss_type: Literal["mse", "bce"]

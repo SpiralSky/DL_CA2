@@ -6,6 +6,7 @@ from matplotlib.figure import Figure
 
 from src.models.util.TrainingHistory import TrainingHistory
 
+
 class MetricPlotSpec(TypedDict, total=False):
     """
     Config for one subplot in plot_metrics().

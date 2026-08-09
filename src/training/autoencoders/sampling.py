@@ -1,7 +1,7 @@
 import numpy as np
+import torch
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
-import torch
 from torch.utils.data import DataLoader
 
 from src.models.autoencoders.AbstractVAE import AbstractVAE

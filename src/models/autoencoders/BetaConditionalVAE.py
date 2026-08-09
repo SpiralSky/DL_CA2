@@ -3,6 +3,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 from src.models.autoencoders.AbstractVAE import AbstractVAE
+from src.models.util.TrainingHistory import TrainingHistory
 
 
 class BetaConditionalVAE(AbstractVAE):
@@ -37,25 +38,20 @@ class BetaConditionalVAE(AbstractVAE):
 
     def get_loss(self, recon, images, mu, logvar, *, beta=None, **kwargs):
         losses = super().get_loss(recon, images, mu, logvar, **kwargs)
-        beta = self.beta if beta is None else beta
-        if beta != 1.0:
-            losses["total"] = losses["reconstruction"] + beta * losses["kl_divergence"]
+        beta = self.beta if beta is None else betas
+        losses["total"] = losses["reconstruction"] + beta * losses["kl_divergence"]
         return losses
 
     def run_epoch(self, loader, device, optimizer, config, train):
         self.train() if train else self.eval()
-
         totals = {"total": 0.0, "reconstruction": 0.0, "kl_divergence": 0.0}
         num_batches = 0
-
         with torch.enable_grad() if train else torch.no_grad():
             for batch in loader:
                 images = batch[0].to(device)
                 labels = batch[1].to(device)
-
                 if train:
                     optimizer.zero_grad()
-
                 recon, mu, logvar = self(images, labels)
                 losses = self.get_loss(
                     recon,
@@ -66,21 +62,19 @@ class BetaConditionalVAE(AbstractVAE):
                     free_bits=config["free_bits"],
                     beta=config.get("beta", self.beta),
                 )
-
                 if train:
                     losses["total"].backward()
                     torch.nn.utils.clip_grad_norm_(
                         self.parameters(), max_norm=config["grad_clip_norm"]
                     )
                     optimizer.step()
-
                 for k in totals:
                     totals[k] += losses[k].item()
-
                 num_batches += 1
-
         return {k: v / num_batches for k, v in totals.items()}
 
+    # TODO: Refactor to use custom Trainer
+    # noinspection method-overriding
     def fit(
         self,
         train_loader: DataLoader,
@@ -96,7 +90,7 @@ class BetaConditionalVAE(AbstractVAE):
         optimizer: torch.optim.Optimizer | None = None,
         scheduler=None,
         early_stopping=None,
-    ) -> list[dict]:
+    ) -> TrainingHistory:
         self.beta = beta
         return super().fit(
             train_loader,

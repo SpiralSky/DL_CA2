@@ -17,14 +17,14 @@ class BasicDecoder(nn.Module):
         self.init_spatial = 4
 
         # Image dimensions (W/H):
-        # 4 -> 8 -> 16 -> 32A
+        # 4 -> 8 -> 16 -> 32
         self.decoder = nn.Sequential(
             nn.Linear(latent_dim, 4096),
             nn.Unflatten(dim=1, unflattened_size=(256, self.init_spatial, self.init_spatial)),
 
-            BasicDecoder.make_conv_block(in_channels=256, out_channels=64),
-            BasicDecoder.make_conv_block(in_channels=64, out_channels=32),
-            BasicDecoder.make_conv_block(in_channels=32, out_channels=3),
+            self.make_conv_block(in_channels=256, out_channels=64),
+            self.make_conv_block(in_channels=64, out_channels=32),
+            self.make_conv_block(in_channels=32, out_channels=3),
 
             nn.Sigmoid()
         )

@@ -2,8 +2,10 @@ import io
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Literal
+
 import torch
 from torch import nn
+
 from src.models.util.TrainingHistory import TrainingHistory
 
 

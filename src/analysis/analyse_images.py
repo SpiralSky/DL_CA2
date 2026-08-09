@@ -1,8 +1,8 @@
-import torch
 import pandas as pd
+import torch
 from pandas.io.formats.style_render import StylerRenderer
 from torch.utils.data import DataLoader
-from pandas.io.formats.style import Styler
+
 
 def get_class_statistics(dataloader: DataLoader, classes: list[str]) -> StylerRenderer:
     sums = {c: torch.zeros(3) for c in classes}

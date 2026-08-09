@@ -1,3 +1,4 @@
+from src.models.autoencoders.decoders.basic_decoder_skip import SkipDecoder
 from src.models.autoencoders.BetaConditionalVAE import BetaConditionalVAE
 from src.models.autoencoders.VAE import VAE
 from src.models.autoencoders.decoders.basic_decoder import BasicDecoder
@@ -21,6 +22,11 @@ def basic_vae(latent_dim=128) -> VAE:
 def improved_basic_vae(latent_dim=128):
     encoder = ImprovedEncoder(latent_dim=latent_dim)
     decoder = ImprovedDecoder(latent_dim=latent_dim)
+    return VAE(encoder=encoder, decoder=decoder, latent_dim=latent_dim)
+
+def skip_vae(latent_dim=128):
+    encoder = ImprovedEncoder(latent_dim=latent_dim)
+    decoder = SkipDecoder(latent_dim=latent_dim)
     return VAE(encoder=encoder, decoder=decoder, latent_dim=latent_dim)
 
 def beta_conditional_vae(num_classes, in_channels=3, base_channels=32, latent_dim=128):

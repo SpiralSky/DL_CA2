@@ -1,13 +1,9 @@
-from collections import defaultdict
-
-import numpy as np
 import torch
 import torch.nn as nn
-from matplotlib import pyplot as plt
-from matplotlib.figure import Figure, SubFigure
 from torch import Tensor
 
 from src.models.autoencoders.AbstractVAE import AbstractVAE
+
 
 class VAE(AbstractVAE):
     def __init__(self, encoder: nn.Module, decoder: nn.Module, latent_dim: int):

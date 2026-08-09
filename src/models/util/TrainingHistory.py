@@ -1,4 +1,5 @@
 from typing import Any, Mapping, Literal
+
 import pandas as pd
 
 
@@ -152,3 +153,6 @@ class TrainingHistory:
                 else {}
             ),
         }
+
+    def __str__(self) -> str:
+        return "\n".join(self.format_epoch(epoch) for epoch in self.train.index)

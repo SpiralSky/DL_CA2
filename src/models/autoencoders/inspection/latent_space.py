@@ -1,7 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import torch.nn as nn
 from matplotlib.axes import Axes
 from sklearn.manifold import TSNE
 from torch.utils.data import DataLoader

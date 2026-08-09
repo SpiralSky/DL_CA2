@@ -13,9 +13,9 @@ class BasicEncoder(nn.Module):
         # It is used in place of MaxPooling to preserve image.
         # Image Dimensions: 32 -> 16 -> 8 -> 4
         self.features = nn.Sequential(
-            BasicEncoder.down_block(3, 64),
-            BasicEncoder.down_block(64, 128),
-            BasicEncoder.down_block(128, 256),
+            self.down_block(3, 64),
+            self.down_block(64, 128),
+            self.down_block(128, 256),
 
             nn.Flatten()
         )
