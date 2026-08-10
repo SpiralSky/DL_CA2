@@ -1,4 +1,5 @@
 # %%
+import gc
 # %load_ext magics.magics
 
 # %% [markdown]
@@ -546,7 +547,7 @@ from src.training.autoencoders.base_vae import train_vae  # noqa: F401
 from src.training.autoencoders.base_vae import train_base_vae  # noqa: F401
 
 # %%
-model, test_dataloader, labels, history = train_base_vae(DATA_DIR, WEIGHTS_DIR / "base_vae.pt")
+model, test_dataloader, labels, history = train_base_vae(DATA_DIR, WEIGHTS_DIR / "basic_vae.pt")
 
 # %% [markdown]
 # #### 3.1.2. Training Curves
@@ -605,6 +606,16 @@ _ = plot_metrics(history, specs)
 # **TSNE** is used to determine if the encoder clusters points within clusters separately.
 #
 # As the points are **densely scattered with no clear separation**, it may suggest that due to there being too many unused dimensions, the random variations mean points end up close to each other in 128D space (latent dim).
+#
+# ---
+# Results:
+#
+# <details>
+# <summary>Saved Output</summary>
+#
+# ![image.png](attachments/base_vae/t-sne.png)
+#
+# </details>
 
 # %%
 # %%load_clean
@@ -616,10 +627,21 @@ analyze_latent_space(model, test_dataloader, class_names=labels, ax=ax)
 plt.show()
 
 # %% [markdown]
-# #### 3.2.2 Plotting Reconstructions
+# ![image.png](attachment:6fad270d-bd6a-42e0-89d8-89d46b58b195.png)#### 3.2.2 Plotting Reconstructions
 # Plotting reconstructions is important to see how good the decoder can recreate encoded images.
 #
 # Based on the current results, we can see the reconstructions correctly encode general texture and shape of images, but are blurry.
+#
+# ---
+# Results:
+#
+#
+# <details>
+# <summary>Saved Output</summary>
+#
+# ![image.png](attachments/base_vae/reconstructions.png)
+#
+# </details>
 
 # %%
 # %%load_clean
@@ -642,9 +664,9 @@ _ = plot_reconstructions(model, test_dataloader)
 # This indicates that information is sparsely distributed across the latent space, with only a small fraction of dimensions actively encoding meaningful features. This suggests that the current latent dimension size (128) is sufficient for the model's current capacity.
 #
 # <details>
-# <summary>Saved Output (Click to show)</summary>
+# <summary>Saved Output</summary>
 #
-# ![image.png](attachment:f8926bc9-d6f9-4ac2-ada8-e6b14d7f69de.png)
+# ![image.png](attachments/base_vae/kl_per_dim.png)
 #
 # </details>
 
@@ -674,9 +696,9 @@ plt.show()
 # Based on these results, Bird and Truck barely resemble their real-life counterparts.
 #
 # <details>
-# <summary>Saved Output (Click to show)</summary>
+# <summary>Saved Output</summary>
 #
-# ![image.png](attachment:3a53fd37-ce42-442c-87c2-7ba4d9e284ff.png)
+# ![image.png](attachments/base_vae/class_samples.png)
 #
 # </details>
 
@@ -709,18 +731,19 @@ _ = plot_class_samples(model, test_dataloader, class_names=labels)
 # <details>
 # <summary>Saved Output</summary>
 #
-# | Class ID | Class Name | FID Score | Samples |
-# | :---: | :--- | :---: | :---: |
-# | 0 | airplane | 171.25 | 770 |
-# | 1 | automobile | 194.65 | 790 |
-# | 2 | bird | 170.22 | 732 |
-# | 3 | cat | 156.92 | 772 |
-# | 4 | deer | 175.26 | 771 |
-# | 5 | dog | 166.62 | 749 |
-# | 6 | frog | 193.65 | 723 |
-# | 7 | horse | 201.33 | 720 |
-# | 8 | ship | 163.24 | 721 |
-# | 9 | truck | 197.32 | 752 |
+# | Index | Class | FID | Samples |
+# | :--- | :--- | :--- | :--- |
+# | 0 | all | 115.695000 | 10000 |
+# | 1 | airplane | 161.667023 | 1000 |
+# | 2 | automobile | 195.564560 | 1000 |
+# | 3 | bird | 158.928101 | 1000 |
+# | 4 | cat | 151.696259 | 1000 |
+# | 5 | deer | 171.366440 | 1000 |
+# | 6 | dog | 157.990524 | 1000 |
+# | 7 | frog | 178.288055 | 1000 |
+# | 8 | horse | 197.150528 | 1000 |
+# | 9 | ship | 167.699295 | 1000 |
+# | 10 | truck | 200.041092 | 1000 |
 #
 # </details>
 
@@ -730,11 +753,6 @@ from src.models.autoencoders.inspection.standard_vae.class_fid import calculate_
 
 # %%
 calculate_class_fid(model, test_dataloader, labels)
-
-# %% [markdown]
-# ### 3.3. Data Augmentation
-
-# %%
 
 # %% [markdown]
 # ## 4. Improving Encoder/Decoder architecture
@@ -775,6 +793,17 @@ model, test_dataloader, labels, history = train_improved_base_vae(DATA_DIR, WEIG
 
 # %% [markdown]
 # #### 4.3.1. Inspecting Training Curves
+# Training Curves are similarly inspected.
+#
+# ---
+# Results:
+#
+# <details>
+# <summary>Saved Output</summary>
+#
+# ![image.png](attachments/improved_vae/training_curves.png)
+#
+# </details>
 
 # %%
 specs: list[MetricPlotSpec] = [
@@ -803,6 +832,25 @@ _ = plot_metrics(history, specs)
 # Based on the KL Contribution per dim plot, this improved architecture has higher KL contribution in some dimensions, meaning that the VAE learns to utilise more of the latent space.
 #
 # However, reconstructions are still blurry and the T-SNE plot is still tightly clustered together.
+#
+# <details>
+# <summary>Saved Output (Reconstructions)</summary>
+#
+# ![image.png](attachments/improved_vae/reconstructions.png)
+#
+# </details>
+# <details>
+# <summary>Saved Output (KL per dim)</summary>
+#
+# ![image.png](attachments/improved_vae/kl_per_dim.png)
+#
+# </details>
+# <details>
+# <summary>Saved Output (T-SNE)</summary>
+#
+# ![image.png](attachments/improved_vae/t-sne.png)
+#
+# </details>
 
 # %%
 _ = plot_reconstructions(model, test_dataloader)
@@ -822,33 +870,32 @@ plt.show()
 # ---
 # Results:
 #
-# Based on visual inspection of generated images, classes like automobile, horse andtruck are barely recognisable.
+# Based on visual inspection of generated images, classes like automobile, horse and truck and airplane are barely recognisable.
 # However, most of the classes cannot be discerned. Thus, increasing encoder and decoder layer depths do not seem to help.
 #
 # <details>
-# <summary>Saved Output (Generated Images)</summary>
+# <summary>Saved Output (Class Samples)</summary>
 #
-# ![image.png](attachment:83584516-29dc-48d2-a611-95012b9995db.png)
+# ![image.png](attachments/improved_vae/class_samples.png)
 #
 # </details>
 #
 # <details>
 # <summary>Saved Output (FID Scores)</summary>
 #
-# | Class ID | Class | FID | Samples |
-# | :---: | :--- | :---: | :---: |
-# | 0 | all | 118.304970 | 7500 |
-# | 1 | airplane | 171.665024 | 733 |
-# | 2 | automobile | 201.175278 | 764 |
-# | 3 | bird | 167.266205 | 753 |
-# | 4 | cat | 161.766663 | 765 |
-# | 5 | deer | 177.994354 | 762 |
-# | 6 | dog | 168.486664 | 729 |
-# | 7 | frog | 195.047302 | 778 |
-# | 8 | horse | 208.284286 | 733 |
-# | 9 | ship | 165.884674 | 746 |
-# | 10 | truck | 205.983459 | 737 |
-#
+# | Index | Class | FID | Samples |
+# | :--- | :--- | :--- | :--- |
+# | 0 | all | 112.638329 | 10000 |
+# | 1 | airplane | 155.213272 | 1000 |
+# | 2 | automobile | 189.595535 | 1000 |
+# | 3 | bird | 154.895233 | 1000 |
+# | 4 | cat | 148.365662 | 1000 |
+# | 5 | deer | 169.937744 | 1000 |
+# | 6 | dog | 154.648071 | 1000 |
+# | 7 | frog | 179.888794 | 1000 |
+# | 8 | horse | 188.818771 | 1000 |
+# | 9 | ship | 163.521957 | 1000 |
+# | 10 | truck | 197.247482 | 1000 |
 # </details>
 #
 #
@@ -924,7 +971,7 @@ model, test_dataloader, labels, history = train_res_vae(DATA_DIR, checkpoint_pat
 # <details>
 # <summary>Saved Output (Generated Images)</summary>
 #
-# ![image.png](attachment:670245c4-e0df-4aff-a981-21fa1cd2800d.png)
+# ![image.png](./attachments/res_vae/training_curves.png)
 #
 # </details>
 
@@ -949,34 +996,34 @@ specs: list[MetricPlotSpec] = [
 _ = plot_metrics(history, specs)
 
 # %% [markdown]
-# ### 5.4. Analysing VAE with Residual Layers
+# attachment:670245c4-e0df-4aff-a981-21fa1cd2800d.pngattachment:670245c4-e0df-4aff-a981-21fa1cd2800d.png### 5.4. Analysing VAE with Residual Layers
 #
 # Results:
 #
-# Output Images are still blurry and the VAE can still generate general outlines, such as the fox (or whatever animal that is)'s coloured ears, the truck's windowpane, etc.
+# Output Images are still blurry and the VAE can still generate general outlines of shapes like ship and the car.
 #
 # <details>
 # <summary>Saved Output (Generated Images)</summary>
 #
-# ![image.png](attachment:2c1df6b1-136a-4448-a167-2bb399bd94a1.png)
+# ![image.png](./attachments/res_vae/reconstructions.png)
 # </details>
 #
 # ---
-# KL Contribution per dimension has decreased somewhat, with dimensions ~100-120 not contributing much at all
+# KL Contribution per dimension has decreased somewhat, however, many dimensions do not seem to contribute.
 #
 # <details>
 # <summary>Saved Output (Generated Images)</summary>
 #
-# ![image.png](attachment:937c31df-aa9b-4e35-bb99-de4c9fb3dc36.png)
+# ![image.png](./attachments/res_vae/kl_per_dim.png)
 # </details>
 #
 # ---
-# TSNE seems to be somewhat seperating, as colour clusters can be distinguished seperately
+# TSNE seems to be somewhat separating, as colour clusters can be distinguished separately (e.g. red cluster). However, there is not much improvement
 #
 # <details>
 # <summary>Saved Output (Generated Images)</summary>
 #
-# ![image.png](attachment:c6e2af3b-47df-4bfc-8614-1b1373e8856b.png)
+# ![image.png](./attachments/res_vae/t-sne.png)
 # </details>
 
 # %%
@@ -1008,25 +1055,25 @@ plt.show()
 # <details>
 # <summary>Saved Output (Generated Image of classes)</summary>
 #
-# ![image.png](attachment:b39383ff-ab23-4be6-abb5-a950608a4095.png)
+# ![image.png](./attachments/res_vae/class_samples.png)
 # </details>
 #
 # <details>
-# <summary>Saved Output (Generated Image of PIDs)</summary>
+# <summary>Saved Output (FIDs)</summary>
 #
-# | Class ID | Class | FID | Samples |
-# | :---: | :--- | :---: | :---: |
-# | 0 | all | 128.125717 | 7500 |
-# | 1 | airplane | 172.304810 | 734 |
-# | 2 | automobile | 201.670212 | 751 |
-# | 3 | bird | 173.698410 | 766 |
-# | 4 | cat | 167.928787 | 697 |
-# | 5 | deer | 190.140884 | 767 |
-# | 6 | dog | 174.019226 | 759 |
-# | 7 | frog | 208.309860 | 760 |
-# | 8 | horse | 216.317078 | 751 |
-# | 9 | ship | 182.129883 | 754 |
-# | 10 | truck | 215.941818 | 761 |
+# | Class       | FID       | Samples |
+# |-------------|-----------|---------|
+# | all         | 125.731445 | 10000 |
+# | airplane    | 165.890259 | 1000 |
+# | automobile  | 196.610382 | 1000 |
+# | bird        | 164.755859 | 1000 |
+# | cat         | 158.209320 | 1000 |
+# | deer        | 184.687515 | 1000 |
+# | dog         | 167.784058 | 1000 |
+# | frog        | 194.918518 | 1000 |
+# | horse       | 206.613083 | 1000 |
+# | ship        | 178.539490 | 1000 |
+# | truck       | 209.251633 | 1000 |
 #
 # </details>
 
@@ -1129,10 +1176,12 @@ model, test_dataloader, labels, history = train_bcvae(DATA_DIR, checkpoint_path=
 # KL warmup works as intended.
 #
 # ---
+# Based on KL divergence output, KL divergence seems to keep decreasing up till the 300th epoch, whilst  reconstruction loss stays the same. This might suggest that the beta value is too high.
+#
 # <details>
 # <summary>Saved Output (Generated Images)</summary>
 #
-# ![image.png](attachment:66b9cfc0-413a-495f-add9-9a21e04e94d9.png)
+# ![image.png](./attachments/bcvae/training_curves.png)
 # </details>
 
 # %%
@@ -1194,24 +1243,30 @@ from src.models.autoencoders.inspection.c_vae.plot_class_samples import plot_con
 #
 # ---
 # Results:
+#
+# Reconstructions are noticeably more blurry, a common feature amongst b-vaes as they prioritise KL divergence.
 # <details>
 # <summary>Figure 1: Reconstructions</summary>
 #
-# ![image.png](attachment:1550ba7b-69f7-4d0b-92d1-c1312a140a36.png)
+#
+# ![image.png](./attachments/bcvae/reconstructions.png)
 #
 # </details>
 #
+# KL divergence seems to be constant throughout with only one dimension fluctuating.
 # <details>
 # <summary>Figure 2: KL Divergence Per Dimension</summary>
 #
-# ![image.png](attachment:7fa96209-0bcd-4109-acbb-431612e3436f.png)
+# ![image.png](./attachments/bcvae/kl_per_dim.png)
 #
 # </details>
 #
+#
+# T-SNE surprisingly separates much better.  Furthermore, points within classes are spread out.
 # <details>
 # <summary>Figure 3: T-SNE Plot</summary>
 #
-# ![image.png](attachment:d86fd71e-f11d-4318-85e5-ffed59a8859a.png)
+# ![image.png](./attachments/bcvae/t-sne.png)
 #
 # </details>
 
@@ -1229,9 +1284,40 @@ plt.show()
 # %% [markdown]
 # ### 6.5. Generative Capabilities of BC-VAE
 # The **Generative Capabilities** of BC-VAE are also tested
+#
+# <details>
+# <summary>Figure 1: Class Samples</summary>
+#
+#
+# ![image.png](./attachments/bcvae/class_samples.png)
+#
+# </details>
+#
+# FID score instead shows deprovement. This is because B-VAE's beta parameter is too strong, making KL dominate reconstruction.
+# <details>
+# <summary>Figure 2: FID</summary>
+#
+#
+# | Index | Class | FID | Samples |
+# | :--- | :--- | :--- | :--- |
+# | 0 | airplane | 196.586319 | 5000 |
+# | 1 | automobile | 214.678940 | 5000 |
+# | 2 | bird | 171.696518 | 5000 |
+# | 3 | cat | 163.691528 | 5000 |
+# | 4 | deer | 169.706238 | 5000 |
+# | 5 | dog | 172.439697 | 5000 |
+# | 6 | frog | 167.861145 | 5000 |
+# | 7 | horse | 205.373535 | 5000 |
+# | 8 | ship | 194.187103 | 5000 |
+# | 9 | truck | 216.143845 | 5000 |
+#
+# </details>
+#
 
 # %%
 _ = plot_conditional_class_samples(model, test_dataloader, class_names=labels)
 
 # %%
+gc.collect()
+torch.cuda.empty_cache()
 calculate_conditional_class_fid(model, test_dataloader, labels)

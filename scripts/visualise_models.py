@@ -13,52 +13,64 @@ from src.models.autoencoders.model_factory import (
 
 ROOT = Path(__file__).resolve().parents[1]
 
-WEIGHTS_DIR = ROOT / "weights"
+WEIGHTS_DIR = ROOT / "build"
 IMAGE_DIR = ROOT / "images"
 
 DEVICE = torch.device("cpu")
 
 
+MODEL_CONFIGS = {
+    "basic": (
+        basic_vae,
+        WEIGHTS_DIR / "basic_vae.pth",
+        lambda: torch.randn(1, 3, 32, 32),
+    ),
+    "improved": (
+        improved_basic_vae,
+        WEIGHTS_DIR / "improved_vae.pth",
+        lambda: torch.randn(1, 3, 32, 32),
+    ),
+    "residual": (
+        residual_vae,
+        WEIGHTS_DIR / "residual_vae.pth",
+        lambda: torch.randn(1, 3, 32, 32),
+    ),
+    "bcvae": (
+        beta_conditional_vae,
+        WEIGHTS_DIR / "bc_vae.pth",
+        lambda: (
+            torch.randn(1, 3, 32, 32),
+            torch.tensor([0]),
+        ),
+    ),
+}
+
+
 def load_model(model_name: str):
-    if model_name == "basic":
-        model = basic_vae(latent_dim=128)
-        checkpoint = WEIGHTS_DIR / "basic_vae.pt"
+    if model_name not in MODEL_CONFIGS:
+        raise ValueError(
+            f"Unknown model '{model_name}'. "
+            f"Available: {list(MODEL_CONFIGS)}"
+        )
 
-        example_input = torch.randn(1, 3, 32, 32)
+    constructor, checkpoint, input_factory = MODEL_CONFIGS[model_name]
 
-    elif model_name == "improved":
-        model = improved_basic_vae(latent_dim=128)
-        checkpoint = WEIGHTS_DIR / "improved_vae.pt"
-
-        example_input = torch.randn(1, 3, 32, 32)
-
-    elif model_name == "residual":
-        model = residual_vae(latent_dim=128)
-        checkpoint = WEIGHTS_DIR / "residual_vae.pt"
-
-        example_input = torch.randn(1, 3, 32, 32)
-
-    elif model_name == "bcvae":
-        model = beta_conditional_vae(
+    if model_name == "bcvae":
+        model = constructor(
             num_classes=10,
             latent_dim=128,
         )
-        checkpoint = WEIGHTS_DIR / "bc_vae.pt"
-
-        example_input = (
-            torch.randn(1, 3, 32, 32),
-            torch.tensor([0]),
-        )
-
     else:
-        raise ValueError(model_name)
+        model = constructor(
+            latent_dim=128,
+        )
 
     state = torch.load(
         checkpoint,
         map_location=DEVICE,
+        weights_only=False,
     )
 
-    # handles checkpoints that store model state
     if "model_state_dict" in state:
         state = state["model_state_dict"]
 
@@ -66,7 +78,7 @@ def load_model(model_name: str):
 
     model.eval()
 
-    return model, example_input
+    return model, input_factory()
 
 
 def main():
