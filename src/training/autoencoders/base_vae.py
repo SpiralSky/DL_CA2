@@ -138,10 +138,8 @@ def train_augmented_base_vae(
     augmentation = transforms.Compose([
         transforms.RandomHorizontalFlip(),
         transforms.ColorJitter(
-            brightness=0.2,
-            contrast=0.2,
-            saturation=0.2,
-            hue=0.05,
+            brightness=0.1,
+            contrast=0.1,
         ),
         transforms.ToTensor(),
     ])

@@ -732,6 +732,11 @@ from src.models.autoencoders.inspection.standard_vae.class_fid import calculate_
 calculate_class_fid(model, test_dataloader, labels)
 
 # %% [markdown]
+# ### 3.3. Data Augmentation
+
+# %%
+
+# %% [markdown]
 # ## 4. Improving Encoder/Decoder architecture
 # To improve latent space utilisation and make the encoder learn to separate classes cleanly in higher-dimensional space, Encoder and Decoder architecture are improved.
 
