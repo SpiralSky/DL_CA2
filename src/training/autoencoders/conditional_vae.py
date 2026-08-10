@@ -64,7 +64,7 @@ def train_bcvae(
         free_bits=0.4,
         kl_warmup_epochs=40,
         callbacks=[
-            EarlyStopping(start_epoch=40),
+            EarlyStopping(start_epoch=40,    min_delta=1e-4,),
         ],
     )
 

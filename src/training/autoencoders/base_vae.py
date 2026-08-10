@@ -8,6 +8,7 @@ from src.datasets.cifar10 import get_dataset, get_dataloaders
 from src.models.autoencoders.VAE import VAE
 from src.models.autoencoders.model_factory import improved_basic_vae, basic_vae, residual_vae
 from src.models.util.TrainingHistory import TrainingHistory
+from src.training.callbacks.EarlyStopping import EarlyStopping
 from src.training.save_state import load_checkpoint, save_checkpoint
 from src.training.trainers.VAETrainer import VAETrainer
 
@@ -70,6 +71,12 @@ def train_vae(
         grad_clip_norm=1.0,
         free_bits=0.4,
         kl_warmup_epochs=30,
+        callbacks=[
+            EarlyStopping(
+                patience=30,
+                min_delta=1e-4,
+            )
+        ],
     )
 
     history = trainer.fit(
@@ -147,7 +154,3 @@ def train_augmented_base_vae(
         override=override,
         transform=augmentation,
     )
-
-def train_perceptual_loss_base_vae(
-
-)

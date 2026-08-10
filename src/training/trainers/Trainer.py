@@ -115,15 +115,20 @@ class Trainer:
                 "val": val_metrics,
             }
 
+            extra_metrics = {
+                "lr": self.optimizer.param_groups[0]["lr"],
+                "time": time.time() - start,
+            }
+
+            extra_metrics.update(
+                self.get_extra_metrics(epoch)
+            )
 
             message = history.update(
                 epoch=epoch,
                 train_metrics=train_metrics,
                 val_metrics=val_metrics,
-                extra_metrics={
-                    "lr": self.optimizer.param_groups[0]["lr"],
-                    "time": time.time() - start,
-                },
+                extra_metrics=extra_metrics
             )
 
             print(message)
@@ -140,6 +145,8 @@ class Trainer:
 
         return history
 
+    def get_extra_metrics(self, epoch: int) -> dict[str, float]:
+        return {}
 
     def clip_gradients(self) -> None:
         """

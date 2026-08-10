@@ -116,3 +116,8 @@ class VAETrainer(Trainer):
             epoch / self.kl_warmup_epochs,
             1.0,
         )
+
+    def get_extra_metrics(self, epoch: int) -> dict[str, float]:
+        return {
+            "kl_weight": self.get_kl_weight(epoch),
+        }
