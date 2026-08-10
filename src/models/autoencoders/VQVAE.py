@@ -2,9 +2,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as functional
 from torch.utils.data import DataLoader
+from src.training.callbacks.EarlyStopping import EarlyStopping
 
 from src.models.util.TrainingHistory import TrainingHistory
-from training.callbacks.EarlyStopping import EarlyStopping
 
 
 class VectorQuantizer(nn.Module):

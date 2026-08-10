@@ -13,6 +13,10 @@ Features:
 - Merges all needed imports into the import cell (deduplicated + grouped)
 - Errors (fails the build) on missing internal module dependencies;
   warns on missing external package dependencies
+- Syncs the .py source with its paired .ipynb before reading, then carries
+  over cell attachments (e.g. pasted images in markdown cells) from the
+  .ipynb, since jupytext's py:percent format has no text representation
+  for attachments and would otherwise silently drop them
 """
 import logging
 import re
@@ -21,6 +25,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 import jupytext
 import nbformat
+from jupytext.cli import jupytext as jupytext_cli
 
 from dependencies.dependency_resolver import (
     DependencyResolver,
@@ -367,11 +372,65 @@ def expand_load_clean_cell(
 
 
 # ---------------------------------------------------------------------------
+# Attachment preservation (jupytext's py:percent format cannot carry
+# cell.attachments -- e.g. pasted/embedded images in markdown cells -- so
+# they must be synced from and copied out of the paired .ipynb).
+# ---------------------------------------------------------------------------
+
+def find_paired_ipynb(src_path: str) -> Optional[Path]:
+    """Return the paired .ipynb next to a dev_*.py source, if it exists."""
+    candidate = Path(src_path).with_suffix(".ipynb")
+    return candidate if candidate.exists() else None
+
+
+def sync_jupytext_pair(src_path: str) -> None:
+    """
+    Run jupytext's own --sync on src_path so the paired .ipynb is brought
+    up to date with the .py (and vice versa) before either is read. This
+    guarantees cell count/order match between the two, which attachment
+    copying below depends on.
+    """
+    if find_paired_ipynb(src_path) is None:
+        return
+
+    jupytext_cli(["--sync", src_path])
+
+
+def merge_attachments_from_pair(notebook: nbformat.NotebookNode, src_path: str) -> None:
+    """
+    Copy cell.attachments from the paired .ipynb onto the freshly-read
+    py:percent notebook, matched by index. Must run before any cell
+    filtering/expansion so indices still align, and after
+    sync_jupytext_pair() so counts are guaranteed to match.
+    """
+    pair_path = find_paired_ipynb(src_path)
+    if pair_path is None:
+        return
+
+    paired = nbformat.read(pair_path, as_version=4)
+
+    if len(paired.cells) != len(notebook.cells):
+        raise BuildError(
+            f"Build failed for {src_path}: paired .ipynb has "
+            f"{len(paired.cells)} cells but .py has {len(notebook.cells)} "
+            f"after sync -- pair is out of sync, re-sync manually and retry."
+        )
+
+    for src_cell, paired_cell in zip(notebook.cells, paired.cells):
+        attachments = paired_cell.get("attachments")
+        if attachments:
+            src_cell["attachments"] = attachments
+
+
+# ---------------------------------------------------------------------------
 # Build
 # ---------------------------------------------------------------------------
 
 def build(src_path: str, out_dir: str = "build") -> Path:
+    sync_jupytext_pair(src_path)
+
     notebook = jupytext.read(src_path, fmt="py:percent")
+    merge_attachments_from_pair(notebook, src_path)
 
     # First pass: collect imports from import cell (using original notebook)
     imports_source = ""

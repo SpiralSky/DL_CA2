@@ -1,5 +1,4 @@
 # %%
-
 # %load_ext magics.magics
 
 # %% [markdown]
@@ -106,6 +105,140 @@ get_class_statistics(eda_dataloader, cifar_10_dataset.classes)
 from src.datasets.cifar10 import get_dataloaders  # noqa: F401
 
 # %% [markdown]
+# ### 2.2. Callbacks
+#
+
+# %% [markdown]
+# #### 2.2.1. Callback Class
+# The `Callback` class comes with default methods and returns a `CallbackSignal` for flexibility within training.
+
+# %%
+# %%load_clean
+from src.training.callbacks.Callback import * # noqa: F401
+
+_LOAD_CLEAN_IMPORTS_5f06 = [
+    Callback,
+    CallbackSignal
+]
+
+# %% [markdown]
+# #### 2.2.2. EarlyStopping
+# EarlyStopping is a simple callback that stops the training session when there is no model improvement since `patience` epochs. By default, that is 15.
+#
+# It also restores best weights for the model at the end of the session.
+
+# %%
+# %%load_clean
+from src.training.callbacks.EarlyStopping import EarlyStopping  # noqa: F401
+
+# %% [markdown]
+# ### 2.2. Losses
+
+# %% [markdown]
+# #### 2.2.1. Reconstruction Loss
+# This function simply lets you choose whether to use **mse** (Mean Squared Error) or **bce** (Binary Cross-Entropy) loss.
+
+# %%
+# %%load_clean
+from src.models.autoencoders.losses.reconstruction import reconstruction_loss  # noqa: F401
+
+# %% [markdown]
+# #### 2.2.1. KL Divergence
+# KL divergence per dim is obtained and its sum is averaged over the number of batches (for batch tensors).
+#
+# This implementation also uses free bits as free bits are used for standard VAEs to not penalise KL divergence when the divergence is below a certain value, pretending overaggressive KL penalties affecting reconstructions.
+
+# %%
+# %%load_clean
+from src.models.autoencoders.losses.kl_divergence import kl_divergence  # noqa: F401
+
+# %% [markdown]
+# #### 2.2.3. Vae Loss
+# As we know, standard VAEs use a combination of KL Divergence and reconstruction loss for their loss functions.
+#
+# Vae Loss returns a dictionary, allowing model to track standard **vae loss** (reconstruction + kl, but in this case `kl` is multiplied by `kl_weight` for **KL warmup**) along with the separate loss functions for analysis.
+
+# %%
+# %%load_clean
+from src.models.autoencoders.losses.models.vae_loss import vae_loss  # noqa: F401
+
+# %% [markdown]
+# ### 2.3. Trainers
+
+# %% [markdown]
+# #### 2.2.1. TrainingHistory
+# TrainingHistory is a utility class used to store history when training in **train, val and extra** metrics within dataframes.
+# It also is used to format training history to log as outputs within fit() loops.
+
+# %%
+# %%load_clean
+from src.models.util.TrainingHistory import TrainingHistory  # noqa: F401
+
+# %% [markdown]
+# #### 2.2.2. Trainer Class
+# The `Trainer` class provides generalised code for training.
+#
+# The method `fit` runs epochs up to max epochs and also runs provided callbacks during epoch start and end.
+#
+# Every epoch, it calls it's `run_epoch` method (unimplemented for base `Trainer`) with train and validation loaders and updates loss accordingly.
+#
+# Then, it updates `TrainingHistory`. On epoch start and end, callback hooks are called.
+#
+# Trainer also applies gradient clipping by default to prevent gradient explosions.
+
+# %%
+# %%load_clean
+from src.training.trainers.Trainer import Trainer  # noqa: F401
+
+# %% [markdown]
+# #### 2.2.3. VAE Trainer
+#
+# `VAETrainer` extends the base `Trainer` class with Variational Autoencoder-specific training logic.
+#
+# The trainer handles:
+# - Forward passes through the VAE model.
+# - Computing reconstruction and KL divergence losses.
+# - KL warmup scheduling.
+# - Gradient updates and clipping.
+# - Aggregating metrics across batches.
+#
+# The training objective is the standard VAE loss:
+#
+# $$
+# \mathcal{L} = \mathcal{L}_{reconstruction} + \beta_{KL}\mathcal{L}_{KL}
+# $$
+# where:
+# - $\mathcal{L}_{reconstruction}$ (_Reconstruction Loss_) measures how well the decoder reconstructs the input.
+# - $\mathcal{L}_{KL}$ (_KL Divergence_) regularises the latent distribution towards the prior distribution.
+# - $\beta_{KL}$ (_KL weight_) is gradually increased during KL warmup to prevent the latent space from collapsing too early.
+#
+# During training, the model outputs:
+#
+# $$
+# (\hat{x}, \mu, \log\sigma^2)
+# $$
+#
+# where $\hat{x}$ is the reconstructed input and $(\mu, \log\sigma^2)$ define the latent Gaussian distribution used for sampling.
+#
+# The trainer supports:
+# - Configurable reconstruction losses (`MSE` or `BCE`).
+# - Free bits regularization to reduce excessive KL penalties on small latent dimensions.
+# - Gradient clipping for training stability.
+# - Optional learning rate schedulers and callbacks through the base `Trainer`.
+#
+# KL warmup linearly increases the KL contribution:
+#
+# $$
+# \beta_{KL} = \min\left(\frac{epoch}{warmup\_epochs}, 1\right)
+# $$
+#
+# allowing the model to prioritize reconstruction early in training before enforcing stronger latent regularization.
+
+# %%
+# %%load_clean
+from src.training.trainers.VAETrainer import VAETrainer  # noqa: F401
+
+# %% [markdown]
 # ### 2.2. Basic Encoder and Decoder
 # Basic Encoder and Decoder Setup.
 # We approached these with standard **convolutional layers** for encoder and decoder.
@@ -116,14 +249,69 @@ from src.datasets.cifar10 import get_dataloaders  # noqa: F401
 
 # %% [markdown]
 # #### 2.2.1. Encoder Architecture
-# For the Encoder Base:
-# - The encoder takes in 32x32 image with 3 channels.
-# - It features 3 down blocks which is a simple convolutional layer with batch normalization.
-# - For each convolutional layer, `kernel_size=3` and `stride=2` are used which halves the image size.
-# - Convolutional filter is turned to 64 filters then doubles in the next 2 layers to learn **deep features of the images**
-# - `LeakyRelu` is used to prevent dead neurons
-# - Flatten is used after the 3 down blocks. As Image dimensions halve per down block, reaching **4x4x256**, total tensor size is 4096, thus output vector length is 4096. A Linear layer then learns information and also reduces the size of the output to `latent_dim` which in this project is 256.
-# - The encoder outputs `mean` and `log_variance` (Standard VAE), which is then used with reparameterization trick for the decoder input.
+#
+# The Basic Encoder is responsible for extracting image features and mapping them into the latent distribution parameters required by the VAE.
+#
+# The encoder:
+# - Takes a **32x32 RGB image** as input, resulting in an input shape of `3x32x32`.
+# - Uses three convolutional **downsampling blocks** to progressively reduce spatial dimensions while increasing feature channels.
+# - Each down block consists of:
+#   - A convolutional layer.
+#   - Batch normalization.
+#   - LeakyReLU activation.
+#
+# The convolutional layers use:
+#
+# $$
+# kernel\_size=3,\quad stride=2,\quad padding=1
+# $$
+#
+# which reduces the spatial dimensions by half after each block:
+#
+# $$
+# 32 \rightarrow 16 \rightarrow 8 \rightarrow 4
+# $$
+#
+# The number of convolutional filters increases throughout the network:
+#
+# $$
+# 3 \rightarrow 64 \rightarrow 128 \rightarrow 256
+# $$
+#
+# Increasing the number of filters allows the encoder to learn increasingly complex and abstract feature representations from the input images.
+#
+# Unlike max pooling, strided convolutions are used for downsampling. This allows the network to learn the downsampling operation while preserving important spatial information.
+#
+# After the convolutional feature extraction layers, the feature maps have dimensions:
+#
+# $$
+# 4 \times 4 \times 256 = 4096
+# $$
+#
+# The feature maps are flattened into a vector of size `4096`, which is passed through two separate fully connected layers:
+#
+# - `mean`: Produces the latent mean vector $\mu$.
+# - `log_variance`: Produces the latent log variance vector $\log(\sigma^2)$.
+#
+# For a latent dimension of 256, the encoder outputs:
+#
+# $$
+# \mu \in \mathbb{R}^{256}
+# $$
+#
+# $$
+# \log(\sigma^2) \in \mathbb{R}^{256}
+# $$
+#
+# These values define the latent Gaussian distribution:
+#
+# $$
+# z \sim \mathcal{N}(\mu, \sigma^2)
+# $$
+#
+# which is sampled using the reparameterization trick before being passed to the decoder.
+#
+# The use of separate mean and log variance outputs allows the VAE to learn a continuous latent space instead of directly encoding deterministic latent vectors.
 
 # %%
 # %%load_clean
@@ -135,12 +323,72 @@ _LOAD_CLEAN_IMPORTS_2d36 = [
 
 # %% [markdown]
 # #### 2.2.2. Decoder Architecture
-# BasicDecoder takes in latent_vector of length `latent_dim` as an input.
 #
-# It has 3 convolution blocks:
-# - Unless `upsample=False` (defaults to `True`), an `Upsample` layer is added which uses nearest neighbour (simple algorithm, duplicates pixels).
-# - Upsample is used with `Conv2d` layers to double image spatial (width/height) dimensions per convolution block, while convolution learns features from it. `kernel_size=3` and `padding=1` ensures the convolution block keeps the image width/height of the same size while learning how to reduce channels while increasing spatial dimensions.
-# - Channels decrease from 256 -> 64 -> 32 -> 3, halving each time, mirroring the encoder (except for 32 -> 3)
+# The Basic Decoder reconstructs an image from the latent representation produced by the encoder.
+#
+# The decoder:
+# - Takes a latent vector of length `latent_dim` as input.
+# - Uses a fully connected layer to expand the latent representation back into a feature map.
+# - Applies three convolutional upsampling blocks to progressively increase spatial dimensions while reducing feature channels.
+# - Outputs a reconstructed RGB image with dimensions `3x32x32`.
+#
+# The latent vector is first expanded using a linear layer:
+#
+# $$
+# latent\_dim \rightarrow 4096
+# $$
+#
+# The resulting vector is reshaped into the initial feature map:
+#
+# $$
+# 4096 = 256 \times 4 \times 4
+# $$
+#
+# giving an initial spatial representation of:
+#
+# $$
+# 256 \times 4 \times 4
+# $$
+#
+# The decoder then increases the spatial dimensions through three convolutional blocks:
+#
+# $$
+# 4 \rightarrow 8 \rightarrow 16 \rightarrow 32
+# $$
+#
+# Each convolutional block consists of:
+# - An optional nearest-neighbour `Upsample` layer, which doubles the spatial dimensions by duplicating neighbouring pixels.
+# - A convolutional layer.
+# - Batch normalization.
+# - LeakyReLU activation.
+#
+# Nearest-neighbour upsampling is used instead of transposed convolutions to avoid checkerboard patterns found in TransposedConvolutions.
+#
+# The convolution layers use:
+#
+# $$
+# kernel\_size=3,\quad stride=1,\quad padding=1
+# $$
+#
+# which preserves the spatial dimensions after convolution, allowing the upsampling operation to control image size changes.
+#
+# The number of feature channels decreases throughout the decoder:
+#
+# $$
+# 256 \rightarrow 64 \rightarrow 32 \rightarrow 3
+# $$
+#
+# This mirrors the encoder structure, where the encoder increases feature channels while reducing spatial dimensions. The decoder performs the reverse operation by reducing feature channels while reconstructing spatial information.
+#
+# Finally, a `Sigmoid` activation is applied to constrain the reconstructed image values between 0 and 1:
+#
+# $$
+# 0 \leq \hat{x} \leq 1
+# $$
+#
+# allowing the output to represent normalized image pixel values.
+#
+# Overall, the decoder learns to transform the compact latent representation back into an image by gradually restoring spatial resolution and converting high-level latent features into pixel-level information.
 
 # %%
 # %%load_clean
@@ -151,60 +399,7 @@ _LOAD_CLEAN_IMPORTS_958e = [
 ]
 
 # %% [markdown]
-# ### 2.3. TrainingHistory class
-# TrainingHistory is a utility class used to store history when training in **train, val and extra** metrics within dataframes.
-# It also is used to format training history to log as outputs within fit() loops.
-
-# %%
-# %%load_clean
-from src.models.util.TrainingHistory import TrainingHistory  # noqa: F401
-
-# %% [markdown]
-# ### 2.4. Callbacks
-# **Callbacks** are defined here with EarlyStopping.
-# Instead of training with a *fixed number of epochs*, we used EarlyStopping with a high epoch count so that the model keeps training until training improvements < `min_delta`, signalling that the model has stopped improving significantly.
-
-# %%
-# %%load_clean
-from src.training.callbacks.Callback import Callback  # noqa: F401
-
-# %%
-# %%load_clean
-from src.training.callbacks.EarlyStopping import EarlyStopping  # noqa: F401
-
-# %% [markdown]
-# ### 2.5. Losses
-
-# %% [markdown]
-# #### 2.5.1. KL Divergence
-# KL divergence per dim is obtained and its sum is averaged over the number of batches (for batch tensors).
-#
-# This implementation also uses free bits as free bits are used for standard VAEs to not penalise KL divergence when the divergence is below a certain value, pretending overaggressive KL penalties affecting reconstructions.
-
-# %%
-# %%load_clean
-from src.models.autoencoders.losses.kl_divergence import kl_divergence  # noqa: F401
-
-# %% [markdown]
-# #### 2.5.2. Reconstruction Loss
-# This function simply lets you choose whether to use **mse** (Mean Squared Error) or **bce** (Binary Cross-Entropy) loss.
-
-# %%
-# %%load_clean
-from src.models.autoencoders.losses.reconstruction import reconstruction_loss  # noqa: F401
-
-# %% [markdown]
-# #### 2.5.3. Vae Loss
-# As we know, standard VAEs use a combination of KL Divergence and reconstruction loss for their loss functions.
-#
-# Vae Loss returns a dictionary, allowing model to track standard **vae loss** (reconstruction + kl, but in this case `kl` is multiplied by `kl_weight` for **KL warmup**) along with the separate loss functions for analysis.
-
-# %%
-# %%load_clean
-from src.models.autoencoders.losses.models.vae_loss import vae_loss  # noqa: F401
-
-# %% [markdown]
-# ### 2.3. VAE
+# ### 2.4. VAE
 # VAE is a simple Variational AutoEncoder implementation created by extending pytorch `nn.Module`.
 #
 # `forward` provides code for forward pass, running its stored `encoder` and `decoder`
@@ -243,27 +438,19 @@ from src.models.autoencoders.losses.models.vae_loss import vae_loss  # noqa: F40
 from src.models.autoencoders.VAE import *  # noqa: F401
 
 _LOAD_CLEAN_IMPORTS_6760 = [
-    VAE,
-    VAETrainConfig
+    VAE
 ]
-
-# %% [markdown]
-# ### 2.4. VAE
-# `VAE` is a simple implementation of `VAE` with the `forward` method.
-#
-# The `forward` method is run when an instance of `VAE` is called and returns the reconstructed image along with *mu* and *logvar* values.
 
 # %%
 # %%load_clean
 from src.models.autoencoders.VAE import *  # noqa: F401
 
 _LOAD_CLEAN_IMPORTS_6760 = [
-    VAE,
-    VAETrainConfig
+    VAE
 ]
 
 # %% [markdown]
-# ### 2.5. Creating a Basic VAE
+# ### 2.6. Creating a Basic VAE
 # Using the [Encoder and Decoder](#22-basic-encoder-and-decoder) defined previously, a basic convolutional VAE is created.
 
 # %%
@@ -303,12 +490,56 @@ _LOAD_CLEAN_IMPORTS_0530 = [
 from src.training.autoencoders.base_vae import print_history  # noqa: F401
 
 # %% [markdown]
+# #### 3.1.3. Train VAE Script
+#
+# ## `train_vae` is a simple function that handles the complete training workflow for a VAE model.
+#
+# The function performs the following steps:
+#
+# 1. **Dataset preparation**
+#    - Loads the CIFAR-10 dataset using the provided `data_path`.
+#    - Extracts class labels for later evaluation and visualization.
+#    - Creates training, validation, and testing dataloaders with a batch size of 256.
+#
+# 2. **Device configuration**
+#    - Automatically selects CUDA if a compatible GPU is available.
+#    - Otherwise, training falls back to CPU.
+#    - The model is moved to the selected device before training.
+#
+# 3. **Checkpoint handling**
+#    - If a checkpoint exists and `override=False`, the saved model state and training history are loaded.
+#    - This allows previously trained models to be reused without retraining.
+#
+# 4. **Training setup**
+#    - Creates an Adam optimiser with a learning rate of `3e-3`. This is because batch_size of `256` is used for dataloaders
+#    - Initialises a `VAETrainer`, which manages the training loop, validation, optimisation, gradient clipping, KL warmup, and callbacks.
+#
+# 5. **Model training**
+#    - The VAE is trained for 300 epochs.
+#    - Free bits regularisation is enabled with a value of `0.4` to prevent latent dimensions from becoming inactive.
+#    - KL warmup is applied over the first 30 epochs, gradually increasing the KL divergence contribution to stabilise training.
+#
+# 6. **Saving results**
+#    - After training, the model weights and training history are saved if a checkpoint path is provided.
+#    - The final training summary is printed.
+#
+# The function returns:
+# - The trained VAE model.
+# - The test dataloader for evaluation.
+# - Dataset class labels.
+# - The training history containing loss and metric information.
+
+# %%
+# %%load_clean
+from src.training.autoencoders.base_vae import train_vae  # noqa: F401
+
+# %% [markdown]
 # ### 3.2. Training Base VAE
-# `train_base_vae` is a basic training function to train and evaluate the VAE by running model.fit
+# `train_base_vae` simply wraps around `train_vae` and to train the simple VAE model we created earlier.
 #
-# By default, batch size is 256 and lr is 3e-3 (can be changed for smaller gpu with less vram).
+# **NOTE**: Saved weights, to be loaded require history included within them.
 #
-# It returns the model, the test dataloader and labels for analysis.
+# **They will be included within submission, however, weights stripped of history are also included due to submission requirements**
 
 # %%
 # %%load_clean
@@ -332,7 +563,7 @@ model, test_dataloader, labels, history = train_base_vae(DATA_DIR, WEIGHTS_DIR /
 # <details>
 # <summary>Saved Output</summary>
 #
-# ![image.png](attachment:74298dd1-8303-4d76-a8dc-bd95890f55e1.png)![description](path/to/image.png)
+# ![image.png](attachments/base_vae/training_curves.png)
 #
 # </details>
 
@@ -451,7 +682,7 @@ plt.show()
 
 # %%
 # %%load_clean
-from src.training.autoencoders.sampling import prepare_image, plot_class_samples  # noqa: F401
+from src.models.autoencoders.inspection.standard_vae.sampling import prepare_image, plot_class_samples  # noqa: F401
 
 # %%
 _ = plot_class_samples(model, test_dataloader, class_names=labels)
@@ -838,10 +1069,10 @@ _LOAD_CLEAN_IMPORTS_ae7a = [
 ]
 
 # %% [markdown]
-# ### 6.1. Conditional Encoder & Decoders
+# ### 6.2. Conditional Encoder & Decoders
 
 # %% [markdown]
-# #### 6.1.1. Conditional Encoder
+# #### 6.2.1. Conditional Encoder
 # The conditional encoder mirrors the latent encoder, except that it takes in **embeddings** along with the standard input image tensor, concatenating them so that the Encoder can directly condition latent distribution on class labels during feature extraction.
 
 # %%
@@ -849,7 +1080,7 @@ _LOAD_CLEAN_IMPORTS_ae7a = [
 from src.models.autoencoders.encoders.conditional_encoder import ConditionalEncoder  # noqa: F401
 
 # %% [markdown]
-# #### 6.1.2. Conditional Decoder
+# #### 6.2.2. Conditional Decoder
 # The conditional Decoder takes similarly takes in a Tensor of embeddings that contains class information, reducing the burden on the decoder for class inference
 #
 # This allows more controlled and targeted class generation so it can focus on generating more fine details.
@@ -867,8 +1098,17 @@ from src.models.autoencoders.decoders.conditional_decoder import ConditionalDeco
 from src.models.autoencoders.model_factory import beta_conditional_vae  # noqa: F401
 
 # %% [markdown]
-# ### 6.3. A simple training script
-# `BCVAE` is trained with a beta of 4 while warmups are set to 50 to account for the higher initial beta values to prevent the KL penalty from dominating.
+# ### 6.3. Training
+
+# %% [markdown]
+# #### 6.3.1. BetaVAETrainer
+
+# %%
+# %%load_clean
+from src.training.trainers.BetaVAETrainer import BetaVAETrainer # noqa: F401
+
+# %% [markdown]
+# #### 6.3.2. Training BCVAE
 
 # %%
 # %%load_clean
@@ -878,7 +1118,7 @@ from src.training.autoencoders.conditional_vae import train_bcvae  # noqa: F401
 model, test_dataloader, labels, history = train_bcvae(DATA_DIR, checkpoint_path=WEIGHTS_DIR / "bc_vae.pt")
 
 # %% [markdown]
-# #### 6.3.1. Analysing Training Curves
+# #### 6.3.3. Training Analysis
 # Training curves are plotted again. Train and validation loss follow the same line, thus, this suggests that the model is learning properly.
 #
 # KL warmup works as intended.
@@ -915,7 +1155,7 @@ _ = plot_metrics(history, specs)
 
 # %% [markdown]
 # #### 6.4.1. Analysis Functions
-# Model analysis functions are altered slightly to use special class-based sampling for C-VAE
+# Model analysis functions are altered slightly to use class-based sampling for C-VAE.
 
 # %%
 # %%load_clean
@@ -938,7 +1178,7 @@ from src.models.autoencoders.inspection.c_vae.conditional_kl_per_dim import plot
 from src.models.autoencoders.inspection.c_vae.plot_class_samples import plot_conditional_class_samples  # noqa: F401
 
 # %% [markdown]
-# ### 6.5. Plotting Analysis on BC-VAE results
+# ### 6.4.2. Plotting Analysis on BC-VAE results
 #
 # The slightly different functions are now plotted.
 #
@@ -983,10 +1223,10 @@ plt.show()
 
 # %% [markdown]
 # ### 6.5. Generative Capabilities of BC-VAE
-# The **Generative Capabilities of BC-VAE are also tested
+# The **Generative Capabilities** of BC-VAE are also tested
 
 # %%
-_ = plot_class_samples(model, test_dataloader, class_names=labels)
+_ = plot_conditional_class_samples(model, test_dataloader, class_names=labels)
 
 # %%
-calculate_class_fid(model, test_dataloader, labels)
+calculate_conditional_class_fid(model, test_dataloader, labels)

@@ -3,13 +3,14 @@ from pathlib import Path
 import torch
 from torch.utils.data import DataLoader
 
-from src.models.autoencoders.VAE import VAE
-from src.models.util.TrainingHistory import TrainingHistory
 from src.datasets.cifar10 import get_dataset, get_dataloaders
+from src.models.autoencoders.BetaConditionalVAE import BetaConditionalVAE
 from src.models.autoencoders.model_factory import beta_conditional_vae
+from src.models.util.TrainingHistory import TrainingHistory
 from src.training.autoencoders.base_vae import print_history
+from src.training.callbacks.EarlyStopping import EarlyStopping
 from src.training.save_state import load_checkpoint, save_checkpoint
-from training.callbacks.EarlyStopping import EarlyStopping
+from src.training.trainers.BetaVAETrainer import BetaVAETrainer
 
 
 def train_bcvae(
@@ -17,14 +18,16 @@ def train_bcvae(
     checkpoint_path: Path | None = None,
     *,
     override: bool = False,
-) -> tuple[VAE, DataLoader, list, TrainingHistory]:
+) -> tuple[BetaConditionalVAE, DataLoader, list, TrainingHistory]:
     """
     Function to train beta conditional VAE.
+
     :param data_path: Path to folder containing data.
     :param checkpoint_path: Optional checkpoint path.
     :param override: If True, ignores existing checkpoint and overwrites after training.
-    :return: Tuple of: Model, DataLoader, Class Labels, Training History
+    :return: Tuple of model, test dataloader, class labels, and training history.
     """
+
     labels = get_dataset(data_path).classes
 
     train_dataloader, val_dataloader, test_dataloader = get_dataloaders(
@@ -33,6 +36,7 @@ def train_bcvae(
     )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     print(f"Device: {device}")
 
     model = beta_conditional_vae(
@@ -42,22 +46,33 @@ def train_bcvae(
 
     if checkpoint_path and checkpoint_path.exists() and not override:
         history = load_checkpoint(model, checkpoint_path)
+
         print_history(history, loaded=True)
+
         return model, test_dataloader, labels, history
 
-    early_stopping = EarlyStopping(start_epoch=50)
+    optimizer = torch.optim.Adam(
+        model.parameters(),
+        lr=3e-3,
+    )
 
-    history = model.fit(
+    trainer = BetaVAETrainer(
+        model,
+        optimizer,
+        beta=4,
+        grad_clip_norm=1.0,
+        free_bits=0.4,
+        kl_warmup_epochs=50,
+        callbacks=[
+            EarlyStopping(start_epoch=50),
+        ],
+    )
+
+    history = trainer.fit(
         train_loader=train_dataloader,
         val_loader=val_dataloader,
         device=device,
         max_epochs=300,
-        lr=3e-3,
-        grad_clip_norm=1.0,
-        free_bits=0.4,
-        kl_warmup_epochs=50,
-        beta=4,
-        early_stopping=early_stopping
     )
 
     if checkpoint_path:

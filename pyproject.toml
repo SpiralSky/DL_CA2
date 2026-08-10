@@ -11,6 +11,7 @@ dependencies = [
     "ipywidgets>=8.1.8",
     "jupytext>=1.19.0",
     "matplotlib~=3.10.9",
+    "mkinit>=1.2.0",
     "nbformat>=5.10.4",
     "numpy>=2.2.6",
     "pandas>=2.3.3",
@@ -30,7 +31,7 @@ dependencies = [
 sync-notebooks = "scripts.sync:sync"
 build = "scripts.build:build_default"
 build-weights = "scripts.build_weights:main"
-direct-trainvae = "src.training.runpod.vae:main"
+train = "scripts.train_models:main"
 
 [build-system]
 requires = ["hatchling"]

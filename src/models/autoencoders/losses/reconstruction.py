@@ -3,6 +3,7 @@ from typing import Literal
 import torch
 from torch.nn import functional
 
+
 def reconstruction_loss(
     recon_x: torch.Tensor,
     x: torch.Tensor,

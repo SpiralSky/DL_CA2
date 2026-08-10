@@ -481,6 +481,7 @@ dependencies = [
     { name = "ipywidgets" },
     { name = "jupytext" },
     { name = "matplotlib" },
+    { name = "mkinit" },
     { name = "nbformat" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
@@ -511,6 +512,7 @@ requires-dist = [
     { name = "ipywidgets", specifier = ">=8.1.8" },
     { name = "jupytext", specifier = ">=1.19.0" },
     { name = "matplotlib", specifier = "~=3.10.9" },
+    { name = "mkinit", specifier = ">=1.2.0" },
     { name = "nbformat", specifier = ">=5.10.4" },
     { name = "numpy", specifier = ">=2.2.6" },
     { name = "pandas", specifier = ">=2.3.3" },
@@ -1199,6 +1201,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d6/54/cfe61301667036ec958cb99bd3efefba235e65cdeb9c84d24a8293ba1d90/mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba", size = 8729, upload-time = "2022-08-14T12:40:10.846Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b3/38/89ba8ad64ae25be8de66a6d463314cf1eb366222074cfda9ee839c56a4b4/mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8", size = 9979, upload-time = "2022-08-14T12:40:09.779Z" },
+]
+
+[[package]]
+name = "mkinit"
+version = "1.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "ubelt" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/77/f7/a1bf60ea227c983f8b705ba41fa8db7c2949ca04239f227d5fd62a404cdf/mkinit-1.2.0.tar.gz", hash = "sha256:4b776ca991ccedbb202b079bd3e573d753121baa2a4f330324247325c9a1d346", size = 76556, upload-time = "2025-12-02T16:22:03.556Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f2/c1/5cac576344167d1a21dc569d39e4aa230626a5a457d4f0ea514f27caa124/mkinit-1.2.0-py3-none-any.whl", hash = "sha256:172755988cdcdc5212d0b76b586ec4765c2bff9ae41266a93f5f4b962c3d2def", size = 70919, upload-time = "2025-12-02T16:22:00.967Z" },
 ]
 
 [[package]]
@@ -3228,6 +3242,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/92/ff/5a28bdfd8c3ebec42564ac7d0e54ca3db65044a9314a97f9564fa7a1e926/tzdata-2026.3.tar.gz", hash = "sha256:4a1518b8993086a7982523e071643f3c0e5f213e75b21318e78bcabfff9d1415", size = 198674, upload-time = "2026-07-10T08:50:37.887Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e5/6d/b53b99a9f2766d095985947a5782f1702cabb129a34f7a802d7197af832f/tzdata-2026.3-py2.py3-none-any.whl", hash = "sha256:dc096730c87af6cab1b171c9d532be840741ff5d459015e7f6947bd7d7e54931", size = 348168, upload-time = "2026-07-10T08:50:36.46Z" },
+]
+
+[[package]]
+name = "ubelt"
+version = "1.4.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/3b/be/1158ba8de4b2c560c4f593d43db6088d74933a5f104663947ec60dedbc3e/ubelt-1.4.3.tar.gz", hash = "sha256:fb5e221369b9984e7a2ab19033c9f0041a937a3bf385cc37c8f9a80d44b4217d", size = 308044, upload-time = "2026-07-31T01:08:03.095Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1b/54/592e7c71138052dba9daf488c163f4ab824992c760b3f452fd0fff6ad4b0/ubelt-1.4.3-py3-none-any.whl", hash = "sha256:e825dbebfbd3b4068598f17c0b8b0d064c37d85291d8cffc58dd8c740c4a3882", size = 233170, upload-time = "2026-07-31T01:08:01.035Z" },
 ]
 
 [[package]]

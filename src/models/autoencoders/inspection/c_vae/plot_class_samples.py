@@ -4,8 +4,16 @@ from matplotlib import pyplot as plt
 from torch.utils.data import DataLoader
 
 from src.models.autoencoders.BetaConditionalVAE import BetaConditionalVAE
-from src.training.autoencoders.sampling import prepare_image
 
+def prepare_image(image: torch.Tensor) -> np.ndarray:
+    if image.ndim == 3:
+        if image.shape[0] in (1, 3):
+            image = image.permute(1, 2, 0)
+
+        if image.shape[-1] == 1:
+            image = image.squeeze(-1)
+
+    return image.detach().cpu().numpy()
 
 def plot_conditional_class_samples(
     model: BetaConditionalVAE,

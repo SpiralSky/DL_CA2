@@ -2,163 +2,154 @@ from pathlib import Path
 
 import torch
 from torch.utils.data import DataLoader
+from torchvision import transforms
 
-from src.datasets.cifar10 import get_dataloaders, get_dataset
+from src.datasets.cifar10 import get_dataset, get_dataloaders
 from src.models.autoencoders.VAE import VAE
-from src.models.autoencoders.model_factory import (
-    basic_vae,
-    improved_basic_vae,
-    residual_vae,
-)
+from src.models.autoencoders.model_factory import improved_basic_vae, basic_vae, residual_vae
 from src.models.util.TrainingHistory import TrainingHistory
 from src.training.save_state import load_checkpoint, save_checkpoint
+from src.training.trainers.VAETrainer import VAETrainer
 
 
-# TODO Add docstring
-def print_history(history: TrainingHistory, *, loaded: bool = False) -> None:
+def print_history(
+    history: TrainingHistory,
+    *,
+    loaded: bool = False,
+) -> None:
     print(history)
+
     status = "Loaded checkpoint" if loaded else "Ended"
-    print(f"\n[Training] {status} at {len(history)} epochs")
+
+    print(
+        f"\n[Training] {status} at {len(history)} epochs"
+    )
+
+def train_vae(
+    model: VAE,
+    data_path: Path,
+    checkpoint_path: Path | None = None,
+    *,
+    override: bool = False,
+    transform=None,
+) -> tuple[VAE, DataLoader, list, TrainingHistory]:
+    """
+    Generic VAE training function.
+
+    :param model: VAE model to train.
+    :param data_path: Path to dataset.
+    :param checkpoint_path: Optional checkpoint path.
+    :param override: Whether to ignore an existing checkpoint.
+    :param transform: Optional transform applied to training images.
+    :return: Model, test DataLoader, class labels and training history.
+    """
+
+    labels = get_dataset(data_path).classes
+
+    train_dataloader, val_dataloader, test_dataloader = get_dataloaders(
+        data_path,
+        batch_size=256,
+        transform=transform,
+    )
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Device: {device}")
+
+    model = model.to(device)
+
+    if checkpoint_path and checkpoint_path.exists() and not override:
+        history = load_checkpoint(model, checkpoint_path)
+        print_history(history, loaded=True)
+        return model, test_dataloader, labels, history
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=3e-3)
+
+    trainer = VAETrainer(
+        model,
+        optimizer,
+        grad_clip_norm=1.0,
+        free_bits=0.4,
+        kl_warmup_epochs=30,
+    )
+
+    history = trainer.fit(
+        train_loader=train_dataloader,
+        val_loader=val_dataloader,
+        device=device,
+        max_epochs=300,
+    )
+
+    if checkpoint_path:
+        save_checkpoint(model, history, checkpoint_path)
+
+    print_history(history)
+
+    return model, test_dataloader, labels, history
+
 
 def train_base_vae(
     data_path: Path,
     checkpoint_path: Path | None = None,
     *,
-    override: bool = False,
+    override: bool = False
 ) -> tuple[VAE, DataLoader, list, TrainingHistory]:
-    """
-    Function to train base VAE
-    :param data_path: Path to folder containing data
-    :param checkpoint_path: Optional checkpoint path.
-    :param override: If True, ignores existing checkpoint and overwrites after training.
-    :return: Tuple of: Model, DataLoader, Class Labels, Training History
-    """
-    labels = get_dataset(data_path).classes
-    train_dataloader, val_dataloader, test_dataloader = get_dataloaders(
+
+    return train_vae(
+        basic_vae(latent_dim=128),
         data_path,
-        batch_size=256,
+        checkpoint_path,
+        override=override
     )
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Device: {device}")
-
-    model = basic_vae(latent_dim=128).to(device)
-
-    if checkpoint_path and checkpoint_path.exists() and not override:
-        history = load_checkpoint(model, checkpoint_path)
-        print_history(history, loaded=True)
-        return model, test_dataloader, labels, history
-
-    history = model.fit(
-        train_loader=train_dataloader,
-        val_loader=val_dataloader,
-        device=device,
-        max_epochs=300,
-        lr=3e-3,
-        grad_clip_norm=1.0,
-        free_bits=0.4,
-        kl_warmup_epochs=30,
-    )
-
-    if checkpoint_path:
-        save_checkpoint(model, history, checkpoint_path)
-
-    print_history(history)
-
-    return model, test_dataloader, labels, history
-
 
 def train_improved_base_vae(
     data_path: Path,
     checkpoint_path: Path | None = None,
     *,
-    override: bool = False,
+    override: bool = False
 ) -> tuple[VAE, DataLoader, list, TrainingHistory]:
-    """
-    Function to train improved base VAE
-    :param data_path: Path to folder containing data
-    :param checkpoint_path: Optional checkpoint path.
-    :param override: If True, ignores existing checkpoint and overwrites after training.
-    :return: Tuple of: Model, DataLoader, Class Labels, Training History
-    """
-    labels = get_dataset(data_path).classes
-    train_dataloader, val_dataloader, test_dataloader = get_dataloaders(
+
+    return train_vae(
+        improved_basic_vae(latent_dim=128),
         data_path,
-        batch_size=256,
+        checkpoint_path,
+        override=override
     )
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Device: {device}")
-
-    model = improved_basic_vae(latent_dim=128).to(device)
-
-    if checkpoint_path and checkpoint_path.exists() and not override:
-        history = load_checkpoint(model, checkpoint_path)
-        print_history(history, loaded=True)
-        return model, test_dataloader, labels, history
-
-    history = model.fit(
-        train_loader=train_dataloader,
-        val_loader=val_dataloader,
-        device=device,
-        max_epochs=300,
-        lr=3e-3,
-        grad_clip_norm=1.0,
-        free_bits=0.4,
-        kl_warmup_epochs=30,
-    )
-
-    if checkpoint_path:
-        save_checkpoint(model, history, checkpoint_path)
-
-    print_history(history)
-
-    return model, test_dataloader, labels, history
-
 
 def train_res_vae(
     data_path: Path,
     checkpoint_path: Path | None = None,
     *,
+    override: bool = False
+) -> tuple[VAE, DataLoader, list, TrainingHistory]:
+
+    return train_vae(
+        residual_vae(latent_dim=128),
+        data_path,
+        checkpoint_path,
+        override=override
+    )
+
+def train_augmented_base_vae(
+    data_path: Path,
+    checkpoint_path: Path | None = None,
+    *,
     override: bool = False,
 ) -> tuple[VAE, DataLoader, list, TrainingHistory]:
-    """
-    Function to train skip VAE
-    :param data_path: Path to folder containing data
-    :param checkpoint_path: Optional checkpoint path.
-    :param override: If True, ignores existing checkpoint and overwrites after training.
-    :return: Tuple of: Model, DataLoader, Class Labels, Training History
-    """
-    labels = get_dataset(data_path).classes
-    train_dataloader, val_dataloader, test_dataloader = get_dataloaders(
+    augmentation = transforms.Compose([
+        transforms.RandomHorizontalFlip(),
+        transforms.ColorJitter(
+            brightness=0.2,
+            contrast=0.2,
+            saturation=0.2,
+            hue=0.05,
+        ),
+        transforms.ToTensor(),
+    ])
+
+    return train_vae(
+        basic_vae(latent_dim=128),
         data_path,
-        batch_size=256,
+        checkpoint_path,
+        override=override,
+        transform=augmentation,
     )
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Device: {device}")
-
-    model = residual_vae(latent_dim=128).to(device)
-
-    if checkpoint_path and checkpoint_path.exists() and not override:
-        history = load_checkpoint(model, checkpoint_path)
-        print_history(history, loaded=True)
-        return model, test_dataloader, labels, history
-
-    history = model.fit(
-        train_loader=train_dataloader,
-        val_loader=val_dataloader,
-        device=device,
-        max_epochs=300,
-        lr=3e-3,
-        grad_clip_norm=1.0,
-        free_bits=0.4,
-        kl_warmup_epochs=30,
-    )
-
-    if checkpoint_path:
-        save_checkpoint(model, history, checkpoint_path)
-
-    print_history(history)
-
-    return model, test_dataloader, labels, history

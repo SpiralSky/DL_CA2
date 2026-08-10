@@ -1,7 +1,7 @@
 from torch import nn
 
-from src.models.autoencoders.util.ResidualBlock import ResidualBlock
 from src.models.autoencoders.encoders.basic_encoder import BasicEncoder
+from src.models.autoencoders.util.ResidualBlock import ResidualBlock
 
 
 class ResEncoder(BasicEncoder):

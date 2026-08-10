@@ -1,34 +1,32 @@
-from typing import Any
-from torch import nn
+from dataclasses import dataclass
 
-from src.models.util.TrainingHistory import TrainingHistory
+@dataclass
+class CallbackSignal:
+    """
+    Signal returned by callbacks to control trainer behaviour.
+    """
 
+    stop_training: bool = False
 
+# noinspection unused-parameter
 class Callback:
     """
-    Base Callback Class.
+    Base callback class.
+
+    Callbacks may override any hook.
     """
 
-    def __init__(self, start_epoch: int = 1) -> None:
-        """
-        Creates a new callback.
+    def on_train_start(self, trainer) -> CallbackSignal | None:
+        return None
 
-        :param start_epoch: Epoch to start callback at.
-        """
-        self.start_epoch = start_epoch
 
-    def on_epoch_end(
-        self,
-        epoch: int,
-        history: TrainingHistory,
-        model: nn.Module,
-    ) -> Any:
-        """
-        Intended to be called every epoch.
+    def on_epoch_start(self, trainer, epoch: int, history) -> CallbackSignal | None:
+        return None
 
-        :param epoch: Current epoch value.
-        :param history: Training history of the model.
-        :param model: Model.
-        :return:
-        """
-        return
+
+    def on_epoch_end(self, trainer, epoch: int, history, metrics: dict[str, dict[str, float]]) -> CallbackSignal | None:
+        return None
+
+
+    def on_train_end(self, trainer, history) -> CallbackSignal | None:
+        return None

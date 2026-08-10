@@ -1,12 +1,15 @@
 import numpy as np
 import torch
 from matplotlib import pyplot as plt
+from torch.utils.data import DataLoader
+
+from src.models.autoencoders.BetaConditionalVAE import BetaConditionalVAE
 
 
 @torch.no_grad()
 def plot_conditional_reconstructions(
-    model,
-    data_loader,
+    model: BetaConditionalVAE,
+    data_loader: DataLoader,
     *,
     device=None,
     num_images: int = 8,

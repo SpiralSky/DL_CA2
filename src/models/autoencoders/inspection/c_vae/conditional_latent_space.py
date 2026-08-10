@@ -5,11 +5,12 @@ from matplotlib.axes import Axes
 from sklearn.manifold import TSNE
 from torch.utils.data import DataLoader
 
+from src.models.autoencoders.BetaConditionalVAE import BetaConditionalVAE
 from src.models.autoencoders.VAE import VAE
 
 
 def analyze_conditional_latent_space(
-    model: VAE,
+    model: BetaConditionalVAE,
     data_loader: DataLoader,
     *,
     n_samples: int | None = 5000,

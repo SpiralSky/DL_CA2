@@ -1,4 +1,3 @@
-from src.models.autoencoders.encoders.basic_residual_encoder import ResEncoder
 from src.models.autoencoders.BetaConditionalVAE import BetaConditionalVAE
 from src.models.autoencoders.VAE import VAE
 from src.models.autoencoders.decoders.basic_decoder import BasicDecoder
@@ -7,6 +6,7 @@ from src.models.autoencoders.decoders.basic_residual_decoder import ResDecoder
 from src.models.autoencoders.decoders.conditional_decoder import ConditionalDecoder
 from src.models.autoencoders.encoders.basic_encoder import BasicEncoder
 from src.models.autoencoders.encoders.basic_encoder_improved import ImprovedEncoder
+from src.models.autoencoders.encoders.basic_residual_encoder import ResEncoder
 from src.models.autoencoders.encoders.conditional_encoder import ConditionalEncoder
 
 
