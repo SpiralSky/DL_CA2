@@ -59,12 +59,12 @@ def train_bcvae(
     trainer = BetaVAETrainer(
         model,
         optimizer,
-        beta=4,
+        beta=2,
         grad_clip_norm=1.0,
         free_bits=0.4,
-        kl_warmup_epochs=50,
+        kl_warmup_epochs=40,
         callbacks=[
-            EarlyStopping(start_epoch=50),
+            EarlyStopping(start_epoch=40),
         ],
     )
 
