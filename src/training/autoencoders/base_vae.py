@@ -137,10 +137,6 @@ def train_augmented_base_vae(
 ) -> tuple[VAE, DataLoader, list, TrainingHistory]:
     augmentation = transforms.Compose([
         transforms.RandomHorizontalFlip(),
-        transforms.ColorJitter(
-            brightness=0.1,
-            contrast=0.1,
-        ),
         transforms.ToTensor(),
     ])
 
