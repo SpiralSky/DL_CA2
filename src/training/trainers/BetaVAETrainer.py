@@ -1,4 +1,4 @@
-from src.models.autoencoders.losses.models import vae_loss
+from src.models.autoencoders.losses.models.vae_loss import vae_loss
 from src.training.trainers.VAETrainer import VAETrainer
 
 
