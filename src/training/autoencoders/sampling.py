@@ -4,7 +4,7 @@ from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 from torch.utils.data import DataLoader
 
-from src.models.autoencoders.AbstractVAE import AbstractVAE
+from src.models.autoencoders.VAE import VAE
 
 
 def prepare_image(image: torch.Tensor) -> np.ndarray:
@@ -19,7 +19,7 @@ def prepare_image(image: torch.Tensor) -> np.ndarray:
 
 
 def plot_class_samples(
-    model: AbstractVAE,
+    model: VAE,
     dataloader: DataLoader,
     *,
     n_images: int = 2,
@@ -87,7 +87,7 @@ def plot_class_samples(
 
 
 def plot_latent_utilization(
-    model: AbstractVAE,
+    model: VAE,
     dataloader: DataLoader,
     *,
     ax: Axes | None = None,

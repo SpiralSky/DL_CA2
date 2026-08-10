@@ -4,11 +4,11 @@ from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 from torch.utils.data import DataLoader
 
-from src.models.autoencoders.AbstractVAE import AbstractVAE
+from src.models.autoencoders.VAE import VAE
 
 
 def plot_conditional_kl_per_dim(
-    model: AbstractVAE,
+    model: VAE,
     dataloader: DataLoader,
     *,
     ax: Axes | None = None,

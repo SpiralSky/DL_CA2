@@ -4,7 +4,7 @@ import torch.nn.functional as functional
 from torch.utils.data import DataLoader
 
 from src.models.util.TrainingHistory import TrainingHistory
-from src.training.callbacks import EarlyStopping
+from training.callbacks.EarlyStopping import EarlyStopping
 
 
 class VectorQuantizer(nn.Module):

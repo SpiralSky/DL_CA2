@@ -2,11 +2,11 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
-from src.models.autoencoders.AbstractVAE import AbstractVAE
+from src.models.autoencoders.VAE import VAE
 from src.models.util.TrainingHistory import TrainingHistory
 
 
-class BetaConditionalVAE(AbstractVAE):
+class BetaConditionalVAE(VAE):
     def __init__(
         self,
         encoder,

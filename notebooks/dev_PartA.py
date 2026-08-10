@@ -166,20 +166,53 @@ from src.models.util.TrainingHistory import TrainingHistory  # noqa: F401
 
 # %%
 # %%load_clean
-from src.training.callbacks import Callback  # noqa: F401
+from src.training.callbacks.Callback import Callback  # noqa: F401
 
 # %%
 # %%load_clean
-from src.training.callbacks import EarlyStopping  # noqa: F401
+from src.training.callbacks.EarlyStopping import EarlyStopping  # noqa: F401
 
 # %% [markdown]
-# ### 2.3. AbstractVAE
-# AbstractVAE is a basic pytorch module for VAE.
+# ### 2.5. Losses
+
+# %% [markdown]
+# #### 2.5.1. KL Divergence
+# KL divergence per dim is obtained and its sum is averaged over the number of batches (for batch tensors).
+#
+# This implementation also uses free bits as free bits are used for standard VAEs to not penalise KL divergence when the divergence is below a certain value, pretending overaggressive KL penalties affecting reconstructions.
+
+# %%
+# %%load_clean
+from src.models.autoencoders.losses.kl_divergence import kl_divergence  # noqa: F401
+
+# %% [markdown]
+# #### 2.5.2. Reconstruction Loss
+# This function simply lets you choose whether to use **mse** (Mean Squared Error) or **bce** (Binary Cross-Entropy) loss.
+
+# %%
+# %%load_clean
+from src.models.autoencoders.losses.reconstruction import reconstruction_loss  # noqa: F401
+
+# %% [markdown]
+# #### 2.5.3. Vae Loss
+# As we know, standard VAEs use a combination of KL Divergence and reconstruction loss for their loss functions.
+#
+# Vae Loss returns a dictionary, allowing model to track standard **vae loss** (reconstruction + kl, but in this case `kl` is multiplied by `kl_weight` for **KL warmup**) along with the separate loss functions for analysis.
+
+# %%
+# %%load_clean
+from src.models.autoencoders.losses.models.vae_loss import vae_loss  # noqa: F401
+
+# %% [markdown]
+# ### 2.3. VAE
+# VAE is a simple Variational AutoEncoder implementation created by extending pytorch `nn.Module`.
+#
+# `forward` provides code for forward pass, running its stored `encoder` and `decoder`
 #
 # Fields:
 # - `latent_dim`: Latent vector length. forward() on superclasses should use this parameter.
 # ---
-# AbstractVAE also contains methods, such as:
+# VAE also contains methods, such as:
 #
 # `reparameterize`: Provides the *reparameterization trick*. As in standard VAE architecture, the encoder outputs a *logvar* value, which is then converted into σ (standard deviation) using the formula below:
 #
@@ -199,9 +232,7 @@ from src.training.callbacks import EarlyStopping  # noqa: F401
 # \exp(x) = e^x
 # $$
 #
-# `reconstruction_loss`: Used to calculate *reconstruction loss* using `mse` or `bce`
-#
-# `kl_divergence`: Used to calculate *kl_divergence*. The default (AbstractVAE) implementation includes free bits, which does not penalize KL divergence per dimension below `free_bits` to prevent posterior collapse.
+# `VAE` uses loss functions provided earlier to get its loss, by calling `vae_loss` in its `get_loss` method.
 #
 # `run_epoch`: Runs a single epoch over AbstractVAE and calculates gradients.
 #
@@ -209,16 +240,16 @@ from src.training.callbacks import EarlyStopping  # noqa: F401
 
 # %%
 # %%load_clean
-from src.models.autoencoders.AbstractVAE import *  # noqa: F401
+from src.models.autoencoders.VAE import *  # noqa: F401
 
-_LOAD_CLEAN_IMPORTS_8162 = [
-    AbstractVAE,
+_LOAD_CLEAN_IMPORTS_6760 = [
+    VAE,
     VAETrainConfig
 ]
 
 # %% [markdown]
 # ### 2.4. VAE
-# `VAE` is a simple implementation of `AbstractVAE` with the `forward` method.
+# `VAE` is a simple implementation of `VAE` with the `forward` method.
 #
 # The `forward` method is run when an instance of `VAE` is called and returns the reconstructed image along with *mu* and *logvar* values.
 
@@ -227,12 +258,13 @@ _LOAD_CLEAN_IMPORTS_8162 = [
 from src.models.autoencoders.VAE import *  # noqa: F401
 
 _LOAD_CLEAN_IMPORTS_6760 = [
-    VAE
+    VAE,
+    VAETrainConfig
 ]
 
 # %% [markdown]
-# ### 2.4. Creating a Basic VAE
-# Using the [Encoder and Decoder](#22-basic-encoder-and-decoder) defined previously, we create a basic convolutional VAE.
+# ### 2.5. Creating a Basic VAE
+# Using the [Encoder and Decoder](#22-basic-encoder-and-decoder) defined previously, a basic convolutional VAE is created.
 
 # %%
 # %%load_clean
@@ -345,7 +377,7 @@ _ = plot_metrics(history, specs)
 
 # %%
 # %%load_clean
-from models.autoencoders.inspection.standard_vae.latent_space import analyze_latent_space  # noqa: F401
+from src.models.autoencoders.inspection.standard_vae.latent_space import analyze_latent_space  # noqa: F401
 
 # %%
 fig, ax = plt.subplots()
@@ -360,7 +392,7 @@ plt.show()
 
 # %%
 # %%load_clean
-from models.autoencoders.inspection.standard_vae.reconstructions import plot_reconstructions # noqa: F401
+from src.models.autoencoders.inspection.standard_vae.reconstructions import plot_reconstructions # noqa: F401
 
 # %%
 _ = plot_reconstructions(model, test_dataloader)
@@ -387,7 +419,7 @@ _ = plot_reconstructions(model, test_dataloader)
 
 # %%
 # %%load_clean
-from models.autoencoders.inspection.kl_per_dim import plot_kl_per_dim
+from src.models.autoencoders.inspection.kl_per_dim import plot_kl_per_dim  # noqa: F401
 
 # %%
 fig, ax = plt.subplots()
@@ -463,13 +495,13 @@ _ = plot_class_samples(model, test_dataloader, class_names=labels)
 
 # %%
 # %%load_clean
-from models.autoencoders.inspection.standard_vae.class_fid import calculate_class_fid  # noqa: F401
+from src.models.autoencoders.inspection.standard_vae.class_fid import calculate_class_fid  # noqa: F401
 
 # %%
 calculate_class_fid(model, test_dataloader, labels)
 
 # %% [markdown]
-# ### 4. Improving Encoder/Decoder architecture
+# ## 4. Improving Encoder/Decoder architecture
 # To improve latent space utilisation and make the encoder learn to separate classes cleanly in higher-dimensional space, Encoder and Decoder architecture are improved.
 
 # %% [markdown]
@@ -593,7 +625,7 @@ _ = plot_class_samples(model, test_dataloader, class_names=labels)
 calculate_class_fid(model, test_dataloader, labels)
 
 # %% [markdown]
-# ### 5. VAE with Residual Layers
+# ## 5. VAE with Residual Layers
 # A simple VAE with a residual block is used for the Decoder while the encoder remains the same
 
 # %% [markdown]
@@ -769,7 +801,7 @@ _ = plot_class_samples(model, test_dataloader, class_names=labels)
 calculate_class_fid(model, test_dataloader, labels)
 
 # %% [markdown]
-# ### 6. Better Architecture - Conditional and Beta VAEs.
+# ## 6. Better Architecture - Conditional and Beta VAEs.
 #
 # **Conditional VAE**:
 # In Conditional VAE setups, class labels are fed to the encoder **alongside the image and concatenated to z before the decoder**. This removes the burden of encoding class identity into z , freeing the latent dimensions to capture intra-class variation such as pose, colour, and background.
@@ -780,7 +812,7 @@ calculate_class_fid(model, test_dataloader, labels)
 
 # %% [markdown]
 # ### 6.1. BetaConditionalVAE
-# `BetaConditionalVAE` extends `AbstractVAE` with a beta parameter in training which is delegates the rest to its super's training loop.
+# `BetaConditionalVAE` extends `VAE` with a beta parameter in training which is delegates the rest to its super's training loop.
 #
 # There are a few notable changes:
 # In its `forward` pass, labels are encoded into embeddings and then passed into the encoder and decoder respectively.
@@ -847,13 +879,15 @@ model, test_dataloader, labels, history = train_bcvae(DATA_DIR, checkpoint_path=
 
 # %% [markdown]
 # #### 6.3.1. Analysing Training Curves
-# Training curves are plotted again
+# Training curves are plotted again. Train and validation loss follow the same line, thus, this suggests that the model is learning properly.
+#
+# KL warmup works as intended.
 #
 # ---
 # <details>
 # <summary>Saved Output (Generated Images)</summary>
 #
-# ![image.png](attachment:c6e2af3b-47df-4bfc-8614-1b1373e8856b.png)
+# ![image.png](attachment:66b9cfc0-413a-495f-add9-9a21e04e94d9.png)
 # </details>
 
 # %%
@@ -905,6 +939,36 @@ from src.models.autoencoders.inspection.c_vae.plot_class_samples import plot_con
 
 # %% [markdown]
 # ### 6.5. Plotting Analysis on BC-VAE results
+#
+# The slightly different functions are now plotted.
+#
+# T-SNE still seems very dense. However, this is to be expected for C-VAEs as classes are just a few dimensions on latent space and now should be roughly around N(0,1) instead of seperating into clusters.
+#
+# Reconstructions seem more blurry than before. This may be because of prioritising KL divergence (and thus higher reconstruction loss)
+#
+#
+# ---
+# Results:
+# <details>
+# <summary>Figure 1: Reconstructions</summary>
+#
+# ![image.png](attachment:1550ba7b-69f7-4d0b-92d1-c1312a140a36.png)
+#
+# </details>
+#
+# <details>
+# <summary>Figure 2: KL Divergence Per Dimension</summary>
+#
+# ![image.png](attachment:7fa96209-0bcd-4109-acbb-431612e3436f.png)
+#
+# </details>
+#
+# <details>
+# <summary>Figure 3: T-SNE Plot</summary>
+#
+# ![image.png](attachment:d86fd71e-f11d-4318-85e5-ffed59a8859a.png)
+#
+# </details>
 
 # %%
 _ = plot_conditional_reconstructions(model, test_dataloader)

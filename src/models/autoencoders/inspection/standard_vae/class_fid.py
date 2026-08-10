@@ -5,12 +5,12 @@ import torch
 from torch.utils.data import DataLoader
 from torchmetrics.image.fid import FrechetInceptionDistance
 
-from src.models.autoencoders.AbstractVAE import AbstractVAE
+from src.models.autoencoders.VAE import VAE
 
 
 @torch.no_grad()
 def calculate_class_fid(
-    model: AbstractVAE,
+    model: VAE,
     dataloader: DataLoader,
     class_labels: list[str],
     *,
