@@ -12,7 +12,6 @@ from src.training.autoencoders.base_vae import (
 )
 from src.training.autoencoders.conditional_vae import train_bcvae
 
-
 DATA_PATH = Path("/workspace/DL_CA2/data")
 CHECKPOINT_DIR = Path("/workspace/DL_CA2/checkpoints")
 
@@ -30,36 +29,32 @@ def main() -> None:
 
     parser.add_argument(
         "--model",
-        required=True,
-        choices=trainers.keys(),
-        help="VAE experiment to train",
-    )
-
-    parser.add_argument(
-        "--override",
-        action="store_true",
-        help="Ignore existing checkpoint and overwrite after training",
+        choices=[*trainers.keys(), "all"],
+        default="all",
+        help="VAE experiment to train. Defaults to all.",
     )
 
     args = parser.parse_args()
 
     CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
 
-    trainer = trainers[args.model]
-    checkpoint_path = CHECKPOINT_DIR / f"{args.model}.pt"
+    selected = trainers.items() if args.model == "all" else [(args.model, trainers[args.model])]
 
-    print(f"\n=== Training {args.model} ===")
+    for name, trainer in selected:
+        checkpoint_path = CHECKPOINT_DIR / f"{name}.pt"
 
-    trainer(
-        data_path=DATA_PATH,
-        checkpoint_path=checkpoint_path,
-        override=args.override,
-    )
+        print(f"\n=== Training {name} ===")
 
-    gc.collect()
+        trainer(
+            data_path=DATA_PATH,
+            checkpoint_path=checkpoint_path,
+            override=True,
+        )
 
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
+        gc.collect()
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
     print("\n=== Training complete ===")
 

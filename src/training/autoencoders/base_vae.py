@@ -147,3 +147,7 @@ def train_augmented_base_vae(
         override=override,
         transform=augmentation,
     )
+
+def train_perceptual_loss_base_vae(
+
+)
