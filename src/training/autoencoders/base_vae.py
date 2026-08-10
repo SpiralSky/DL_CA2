@@ -74,7 +74,8 @@ def train_vae(
         callbacks=[
             EarlyStopping(
                 patience=30,
-                min_delta=1e-4,
+                start_epoch=30,
+                min_delta=1e-4
             )
         ],
     )
@@ -89,7 +90,6 @@ def train_vae(
     if checkpoint_path:
         save_checkpoint(model, history, checkpoint_path)
 
-    print_history(history)
 
     return model, test_dataloader, labels, history
 

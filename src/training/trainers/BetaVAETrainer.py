@@ -1,5 +1,4 @@
-import torch
-
+from src.models.autoencoders.losses.models import vae_loss
 from src.training.trainers.VAETrainer import VAETrainer
 
 
@@ -17,7 +16,7 @@ class BetaVAETrainer(VAETrainer):
         scheduler=None,
         callbacks=None,
         grad_clip_norm=1.0,
-        loss_fn=None,
+        loss_fn=vae_loss,
         recon_loss_type="mse",
         free_bits=0.0,
         kl_warmup_epochs=0,

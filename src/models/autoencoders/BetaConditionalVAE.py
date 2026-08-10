@@ -19,12 +19,10 @@ class BetaConditionalVAE(VAE):
         latent_dim: int,
         num_classes: int,
         label_embed_dim: int = 16,
-        beta: float = 1.0,
     ):
         super().__init__(encoder, decoder, latent_dim)
 
         self.label_embeddings = nn.Embedding(num_classes, label_embed_dim)
-        self.beta = beta
 
     def forward(
         self,
