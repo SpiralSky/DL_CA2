@@ -289,6 +289,7 @@ def expand_load_clean_cell(
             errors.append(f"  [ERROR] Module not found: {module_path}")
             return strip_load_clean_cell(source), warnings, errors
 
+        filepath = Path(filepath)
         try:
             module_source = filepath.read_text(encoding="utf-8")
         except OSError as e:

@@ -13,7 +13,7 @@ from src.models.autoencoders.model_factory import (
 
 ROOT = Path(__file__).resolve().parents[1]
 
-WEIGHTS_DIR = ROOT / "build"
+BUILD_DIR = ROOT / "build"
 IMAGE_DIR = ROOT / "images"
 
 DEVICE = torch.device("cpu")
@@ -22,27 +22,44 @@ DEVICE = torch.device("cpu")
 MODEL_CONFIGS = {
     "basic": (
         basic_vae,
-        WEIGHTS_DIR / "basic_vae.pth",
+        BUILD_DIR / "basic_vae.pth",
         lambda: torch.randn(1, 3, 32, 32),
     ),
     "improved": (
         improved_basic_vae,
-        WEIGHTS_DIR / "improved_vae.pth",
+        BUILD_DIR / "improved_vae.pth",
         lambda: torch.randn(1, 3, 32, 32),
     ),
     "residual": (
         residual_vae,
-        WEIGHTS_DIR / "residual_vae.pth",
+        BUILD_DIR / "residual_vae.pth",
         lambda: torch.randn(1, 3, 32, 32),
     ),
     "bcvae": (
         beta_conditional_vae,
-        WEIGHTS_DIR / "bc_vae.pth",
+        BUILD_DIR / "bc_vae.pth",
         lambda: (
             torch.randn(1, 3, 32, 32),
             torch.tensor([0]),
         ),
     ),
+}
+
+
+# Tune these independently
+GRAPH_CONFIG = {
+    "vae": {
+        "expand_nested": False,
+        "depth": 5,
+    },
+    "encoder": {
+        "expand_nested": True,
+        "depth": 5,
+    },
+    "decoder": {
+        "expand_nested": True,
+        "depth": 5,
+    },
 }
 
 
@@ -81,25 +98,85 @@ def load_model(model_name: str):
     return model, input_factory()
 
 
-def main():
-    IMAGE_DIR.mkdir(exist_ok=True)
-
-    model, example_input = load_model("improved")
+def generate_graph(
+    model: torch.nn.Module,
+    example_input,
+    name: str,
+    *,
+    expand_nested: bool,
+    depth: int,
+):
+    print(f"Generating {name}...")
 
     graph = draw_graph(
         model,
         input_data=example_input,
-        expand_nested=True,
-        graph_name="VAE Architecture",
+        expand_nested=expand_nested,
+        depth=depth,
+        graph_name=name,
         save_graph=True,
         directory=str(IMAGE_DIR),
-        filename="vae_architecture",
+        filename=name,
     )
 
     graph.visual_graph.render(
-        str(IMAGE_DIR / "vae_architecture"),
+        str(IMAGE_DIR / name),
         format="png",
     )
+
+
+def get_encoder_input(example_input):
+    if isinstance(example_input, tuple):
+        return example_input[0]
+
+    return example_input
+
+
+def get_decoder_input(model_name: str):
+    latent = torch.randn(1, 128)
+
+    if model_name == "bcvae":
+        return (
+            latent,
+            torch.tensor([0]),
+        )
+
+    return latent
+
+
+def generate_model_graphs(model_name: str):
+    model, example_input = load_model(model_name)
+
+    # Full VAE
+    generate_graph(
+        model,
+        example_input,
+        f"{model_name}_vae",
+        **GRAPH_CONFIG["vae"],
+    )
+
+    # Encoder
+    generate_graph(
+        model.encoder,
+        get_encoder_input(example_input),
+        f"{model_name}_encoder",
+        **GRAPH_CONFIG["encoder"],
+    )
+
+    # Decoder
+    generate_graph(
+        model.decoder,
+        get_decoder_input(model_name),
+        f"{model_name}_decoder",
+        **GRAPH_CONFIG["decoder"],
+    )
+
+
+def main():
+    IMAGE_DIR.mkdir(exist_ok=True)
+
+    for model_name in MODEL_CONFIGS:
+        generate_model_graphs(model_name)
 
 
 if __name__ == "__main__":

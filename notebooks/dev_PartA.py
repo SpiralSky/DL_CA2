@@ -627,7 +627,7 @@ analyze_latent_space(model, test_dataloader, class_names=labels, ax=ax)
 plt.show()
 
 # %% [markdown]
-# ![image.png](attachment:6fad270d-bd6a-42e0-89d8-89d46b58b195.png)#### 3.2.2 Plotting Reconstructions
+# #### 3.2.2 Plotting Reconstructions
 # Plotting reconstructions is important to see how good the decoder can recreate encoded images.
 #
 # Based on the current results, we can see the reconstructions correctly encode general texture and shape of images, but are blurry.
