@@ -67,8 +67,8 @@ eda_dataloader = DataLoader(cifar_10_dataset, batch_size=256, shuffle=False)
 # %%load_clean
 from src.analysis.cifar10.display_images import display_class_images  # noqa: F401
 
-# %%
-# Capturing output so no axes are returned
+    # %%
+    # Capturing output so no axes are returned
 _ = display_class_images(eda_dataloader, cifar_10_dataset.classes, 5)
 
 # %% [markdown]
